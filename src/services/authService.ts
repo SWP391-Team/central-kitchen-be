@@ -1,0 +1,79 @@
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+import { UserRepository } from '../repositories/userRepository';
+
+export interface LoginDto {
+  username: string;
+  password: string;
+}
+
+export interface AuthResponse {
+  token: string;
+  user: {
+    user_id: number;
+    username: string;
+    role_id: number;
+    store_id: number | null;
+  };
+}
+
+export class AuthService {
+  private userRepository: UserRepository;
+  private jwtSecret: string;
+
+  constructor() {
+    this.userRepository = new UserRepository();
+    this.jwtSecret = process.env.JWT_SECRET || 'your-secret-key';
+  }
+
+  async login(loginData: LoginDto): Promise<AuthResponse> {
+    const { username, password } = loginData;
+
+    // Find user by username
+    const user = await this.userRepository.findByUsername(username);
+    if (!user) {
+      throw new Error('Invalid credentials');
+    }
+
+    // Check if user is active
+    if (!user.is_active) {
+      throw new Error('User account is inactive');
+    }
+
+    // Verify password
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      throw new Error('Invalid credentials');
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      {
+        user_id: user.user_id,
+        username: user.username,
+        role_id: user.role_id,
+        store_id: user.store_id,
+      },
+      this.jwtSecret,
+      { expiresIn: '24h' }
+    );
+
+    return {
+      token,
+      user: {
+        user_id: user.user_id,
+        username: user.username,
+        role_id: user.role_id,
+        store_id: user.store_id,
+      },
+    };
+  }
+
+  verifyToken(token: string): any {
+    try {
+      return jwt.verify(token, this.jwtSecret);
+    } catch (error) {
+      throw new Error('Invalid token');
+    }
+  }
+}
