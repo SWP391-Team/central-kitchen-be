@@ -1,6 +1,7 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { UserRepository } from '../repositories/userRepository';
+import { StoreRepository } from '../repositories/storeRepository';
 
 export interface LoginDto {
   username: string;
@@ -19,10 +20,12 @@ export interface AuthResponse {
 
 export class AuthService {
   private userRepository: UserRepository;
+  private storeRepository: StoreRepository;
   private jwtSecret: string;
 
   constructor() {
     this.userRepository = new UserRepository();
+    this.storeRepository = new StoreRepository();
     this.jwtSecret = process.env.JWT_SECRET || 'your-secret-key';
   }
 
@@ -38,6 +41,14 @@ export class AuthService {
     // Check if user is active
     if (!user.is_active) {
       throw new Error('User account is inactive');
+    }
+
+    // Check if user's store is active (if user has a store)
+    if (user.store_id !== null) {
+      const store = await this.storeRepository.findById(user.store_id);
+      if (!store || !store.is_active) {
+        throw new Error('Your store is inactive. Please contact administrator.');
+      }
     }
 
     // Verify password

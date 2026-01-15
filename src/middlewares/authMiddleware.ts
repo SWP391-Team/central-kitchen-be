@@ -1,26 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
-import { AuthService } from '../services/authService';
 
-declare global {
-  namespace Express {
-    interface Request {
-      user?: {
-        user_id: number;
-        username: string;
-        role_id: number;
-        store_id: number | null;
-      };
-    }
-  }
-}
-
-const authService = new AuthService();
-
-export const authMiddleware = (req: Request, res: Response, next: NextFunction): void => {
-  try {
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+/**
+ * Middleware to check if user has required role(s)
+ * Must be used after jwtMiddleware
+ */
+export const requireRole = (...allowedRoles: number[]) => {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    if (!req.user) {
       res.status(401).json({
         success: false,
         message: 'Authentication required',
@@ -28,21 +14,40 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction):
       return;
     }
 
-    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
-    const decoded = authService.verifyToken(token);
-
-    req.user = {
-      user_id: decoded.user_id,
-      username: decoded.username,
-      role_id: decoded.role_id,
-      store_id: decoded.store_id,
-    };
+    if (!allowedRoles.includes(req.user.role_id)) {
+      res.status(403).json({
+        success: false,
+        message: 'Access denied. Insufficient permissions.',
+      });
+      return;
+    }
 
     next();
-  } catch (error) {
-    res.status(401).json({
-      success: false,
-      message: 'Invalid or expired token',
-    });
-  }
+  };
+};
+
+/**
+ * Middleware to check if user belongs to a specific store
+ * Must be used after jwtMiddleware
+ */
+export const requireStore = (storeId: number) => {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    if (!req.user) {
+      res.status(401).json({
+        success: false,
+        message: 'Authentication required',
+      });
+      return;
+    }
+
+    if (req.user.store_id !== storeId) {
+      res.status(403).json({
+        success: false,
+        message: 'Access denied. You do not have access to this store.',
+      });
+      return;
+    }
+
+    next();
+  };
 };

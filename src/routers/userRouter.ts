@@ -1,12 +1,12 @@
 import { Router } from 'express';
 import { UserController } from '../controllers/userController';
-import { authMiddleware } from '../middlewares/authMiddleware';
+import { jwtMiddleware } from '../middlewares/jwtMiddleware';
 
 const router = Router();
 const userController = new UserController();
 
 // All user routes require authentication
-router.use(authMiddleware);
+router.use(jwtMiddleware);
 
 router.get('/', userController.getAllUsers);
 router.get('/:id', userController.getUserById);

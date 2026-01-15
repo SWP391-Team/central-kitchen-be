@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import pool from './config/database';
 import authRouter from './routers/authRouter';
 import userRouter from './routers/userRouter';
+import storeRouter from './routers/storeRouter';
 
 dotenv.config();
 
@@ -15,6 +16,7 @@ app.use(express.json());
 // Routes
 app.use('/api/auth', authRouter);
 app.use('/api/users', userRouter);
+app.use('/api/stores', storeRouter);
 
 app.get('/api/health', async (req, res) => {
   try {
