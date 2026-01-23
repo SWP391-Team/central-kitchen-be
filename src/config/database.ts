@@ -3,18 +3,16 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Cấu hình kết nối Supabase PostgreSQL
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
-    rejectUnauthorized: false // Supabase yêu cầu SSL
+    rejectUnauthorized: false 
   },
-  max: 20, // Số kết nối tối đa trong pool
+  max: 20, 
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,
 });
 
-// Test kết nối
 pool.on('connect', () => {
   console.log('✅ Connected to Supabase PostgreSQL database');
 });
@@ -24,7 +22,6 @@ pool.on('error', (err) => {
   process.exit(-1);
 });
 
-// Hàm query helper
 export const query = async (text: string, params?: any[]) => {
   const start = Date.now();
   try {

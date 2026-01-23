@@ -1,9 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
 
-/**
- * Middleware to check if user has required role(s)
- * Must be used after jwtMiddleware
- */
 export const requireRole = (...allowedRoles: number[]) => {
   return (req: Request, res: Response, next: NextFunction): void => {
     if (!req.user) {
@@ -26,10 +22,6 @@ export const requireRole = (...allowedRoles: number[]) => {
   };
 };
 
-/**
- * Middleware to check if user belongs to a specific store
- * Must be used after jwtMiddleware
- */
 export const requireStore = (storeId: number) => {
   return (req: Request, res: Response, next: NextFunction): void => {
     if (!req.user) {

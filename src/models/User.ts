@@ -6,6 +6,7 @@ export interface User {
   store_id: number | null;
   is_active: boolean;
   created_at: Date;
+  updated_at?: Date;
 }
 
 export interface UserCreateDto {
@@ -31,4 +32,5 @@ export interface UserResponse {
   store_id: number | null;
   is_active: boolean;
   created_at: Date;
+  updated_at?: Date;
 }

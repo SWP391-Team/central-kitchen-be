@@ -5,6 +5,8 @@ import pool from './config/database';
 import authRouter from './routers/authRouter';
 import userRouter from './routers/userRouter';
 import storeRouter from './routers/storeRouter';
+import productRouter from './routers/productRouter';
+import productBatchRouter from './routers/productBatchRouter';
 
 dotenv.config();
 
@@ -13,14 +15,14 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Routes
 app.use('/api/auth', authRouter);
 app.use('/api/users', userRouter);
 app.use('/api/stores', storeRouter);
+app.use('/api/products', productRouter);
+app.use('/api/batches', productBatchRouter);
 
 app.get('/api/health', async (req, res) => {
   try {
-    // Test database connection
     const result = await pool.query('SELECT NOW()');
     res.json({
       status: 'OK',
@@ -40,7 +42,7 @@ app.get('/api/health', async (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
 
 export default app;

@@ -32,18 +32,15 @@ export class AuthService {
   async login(loginData: LoginDto): Promise<AuthResponse> {
     const { username, password } = loginData;
 
-    // Find user by username
     const user = await this.userRepository.findByUsername(username);
     if (!user) {
       throw new Error('Invalid credentials');
     }
 
-    // Check if user is active
     if (!user.is_active) {
       throw new Error('User account is inactive');
     }
 
-    // Check if user's store is active (if user has a store)
     if (user.store_id !== null) {
       const store = await this.storeRepository.findById(user.store_id);
       if (!store || !store.is_active) {
@@ -51,13 +48,11 @@ export class AuthService {
       }
     }
 
-    // Verify password
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
       throw new Error('Invalid credentials');
     }
 
-    // Generate JWT token
     const token = jwt.sign(
       {
         user_id: user.user_id,

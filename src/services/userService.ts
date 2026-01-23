@@ -20,13 +20,11 @@ export class UserService {
   }
 
   async createUser(userData: UserCreateDto): Promise<UserResponse> {
-    // Check if username already exists
     const existingUser = await this.userRepository.findByUsername(userData.username);
     if (existingUser) {
       throw new Error('Username already exists');
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(userData.password, 10);
 
     const user = await this.userRepository.create({
@@ -38,7 +36,6 @@ export class UserService {
   }
 
   async updateUser(userId: number, userData: UserUpdateDto): Promise<UserResponse | null> {
-    // Check if username is being changed and already exists
     if (userData.username) {
       const existingUser = await this.userRepository.findByUsername(userData.username);
       if (existingUser && existingUser.user_id !== userId) {
@@ -46,7 +43,6 @@ export class UserService {
       }
     }
 
-    // Hash password if it's being updated
     if (userData.password) {
       userData.password = await bcrypt.hash(userData.password, 10);
     }

@@ -4,6 +4,7 @@ export interface Store {
   store_address: string;
   is_active: boolean;
   created_at: Date;
+  updated_at?: Date;
 }
 
 export interface StoreCreateDto {
@@ -24,4 +25,5 @@ export interface StoreResponse {
   store_address: string;
   is_active: boolean;
   created_at: Date;
+  updated_at?: Date;
 }

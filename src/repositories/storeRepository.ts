@@ -7,14 +7,12 @@ export class StoreRepository {
     const values: any[] = [];
     let paramCount = 1;
 
-    // Search by store name or address
     if (params?.search) {
       query += ` AND (LOWER(store_name) LIKE $${paramCount} OR LOWER(store_address) LIKE $${paramCount})`;
       values.push(`%${params.search.toLowerCase()}%`);
       paramCount++;
     }
 
-    // Filter by status
     if (params?.is_active !== undefined) {
       query += ` AND is_active = $${paramCount}`;
       values.push(params.is_active);
@@ -100,7 +98,6 @@ export class StoreRepository {
     return result.rowCount ? result.rowCount > 0 : false;
   }
 
-  // Check if store has any users
   async hasUsers(storeId: number): Promise<boolean> {
     const result = await pool.query(
       'SELECT COUNT(*) as count FROM "user" WHERE store_id = $1',

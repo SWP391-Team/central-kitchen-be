@@ -21,7 +21,6 @@ export class StoreService {
   }
 
   async createStore(storeData: StoreCreateDto): Promise<StoreResponse> {
-    // Check if store name already exists
     const existingStore = await this.storeRepository.findByName(storeData.store_name);
     if (existingStore) {
       throw new Error('Store name already exists');
@@ -36,7 +35,6 @@ export class StoreService {
       throw new Error('Store not found');
     }
 
-    // If updating store name, check if it already exists
     if (storeData.store_name && storeData.store_name !== store.store_name) {
       const existingStore = await this.storeRepository.findByName(storeData.store_name);
       if (existingStore) {
@@ -70,7 +68,6 @@ export class StoreService {
       throw new Error('Store not found');
     }
 
-    // Check if store has users
     const hasUsers = await this.storeRepository.hasUsers(storeId);
     if (hasUsers) {
       throw new Error('Cannot delete store with assigned users. Please reassign or remove users first.');
