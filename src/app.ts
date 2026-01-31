@@ -7,6 +7,7 @@ import userRouter from './routers/userRouter';
 import storeRouter from './routers/storeRouter';
 import productRouter from './routers/productRouter';
 import productBatchRouter from './routers/productBatchRouter';
+import supplyOrderRouter from './routers/supplyOrderRouter';
 
 dotenv.config();
 
@@ -20,6 +21,7 @@ app.use('/api/users', userRouter);
 app.use('/api/stores', storeRouter);
 app.use('/api/products', productRouter);
 app.use('/api/batches', productBatchRouter);
+app.use('/api/supply-orders', supplyOrderRouter);
 
 app.get('/api/health', async (req, res) => {
   try {

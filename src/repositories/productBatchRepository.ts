@@ -45,6 +45,31 @@ export class ProductBatchRepository {
     return result.rows;
   }
 
+  async findByStoreId(storeId: number): Promise<ProductBatchWithDetails[]> {
+    const query = `
+      SELECT 
+        pb.batch_id,
+        pb.product_id,
+        p.product_name,
+        p.unit,
+        pb.production_date,
+        pb.expired_date,
+        pb.status,
+        pb.disposed_reason,
+        pb.disposed_at,
+        pb.created_at,
+        COALESCE(i.quantity, 0) as quantity
+      FROM product_batch pb
+      INNER JOIN product p ON pb.product_id = p.product_id
+      LEFT JOIN inventory i ON pb.batch_id = i.batch_id AND i.store_id = $1
+      WHERE i.quantity > 0
+      ORDER BY pb.created_at DESC
+    `;
+    
+    const result = await pool.query(query, [storeId]);
+    return result.rows;
+  }
+
   async findById(batchId: number): Promise<ProductBatch | null> {
     const query = 'SELECT * FROM product_batch WHERE batch_id = $1';
     const result = await pool.query(query, [batchId]);

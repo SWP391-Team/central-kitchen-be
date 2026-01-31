@@ -10,6 +10,11 @@ export class ProductBatchService {
     return await productBatchRepository.findAllWithDetails();
   }
 
+  async getBatchesByStore(storeId: number): Promise<ProductBatchWithDetails[]> {
+    await productBatchRepository.updateExpiredStatuses();
+    return await productBatchRepository.findByStoreId(storeId);
+  }
+
   async createBatches(batchesData: ProductBatchCreateDto[]): Promise<ProductBatchWithDetails[]> {
     for (const batchData of batchesData) {
       this.validateBatch(batchData);

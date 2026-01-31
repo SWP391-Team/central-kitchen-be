@@ -7,9 +7,10 @@ const router = Router();
 
 router.use(jwtMiddleware);
 
-router.use(requireRole(1, 2));
+router.use(requireRole(1, 2, 3)); 
 
 router.get('/', productBatchController.getAllBatches);
+router.get('/store/:storeId', productBatchController.getBatchesByStore);
 router.post('/', productBatchController.createBatches);
 router.put('/:id/dispose', productBatchController.disposeBatch);
 router.post('/update-statuses', productBatchController.updateStatuses);

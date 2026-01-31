@@ -19,6 +19,32 @@ export class ProductBatchController {
     }
   };
 
+  getBatchesByStore = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const storeId = parseInt(req.params.storeId as string);
+      
+      if (isNaN(storeId)) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid store ID',
+        });
+        return;
+      }
+
+      const batches = await productBatchService.getBatchesByStore(storeId);
+      res.json({
+        success: true,
+        data: batches,
+      });
+    } catch (error) {
+      console.error('Get batches by store error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+      });
+    }
+  };
+
   createBatches = async (req: Request, res: Response): Promise<void> => {
     try {
       const batchesData: ProductBatchCreateDto[] = req.body.batches;
