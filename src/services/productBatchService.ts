@@ -6,13 +6,13 @@ const CENTRAL_KITCHEN_STORE_ID = 1;
 
 export class ProductBatchService {
   async getAllBatchesWithDetails(): Promise<ProductBatchWithDetails[]> {
-    await productBatchRepository.updateExpiredStatuses();
-    return await productBatchRepository.findAllWithDetails();
+    await inventoryRepository.updateExpiredStatuses();
+    return await inventoryRepository.findAllWithDetails(CENTRAL_KITCHEN_STORE_ID);
   }
 
   async getBatchesByStore(storeId: number): Promise<ProductBatchWithDetails[]> {
-    await productBatchRepository.updateExpiredStatuses();
-    return await productBatchRepository.findByStoreId(storeId);
+    await inventoryRepository.updateExpiredStatuses();
+    return await inventoryRepository.findAllWithDetails(storeId);
   }
 
   async createBatches(batchesData: ProductBatchCreateDto[]): Promise<ProductBatchWithDetails[]> {
@@ -31,7 +31,7 @@ export class ProductBatchService {
         quantity: batchData.quantity
       });
 
-      const batches = await productBatchRepository.findAllWithDetails();
+      const batches = await inventoryRepository.findAllWithDetails(CENTRAL_KITCHEN_STORE_ID);
       const createdBatch = batches.find(b => b.batch_id === batch.batch_id);
       
       if (createdBatch) {
@@ -60,34 +60,6 @@ export class ProductBatchService {
     if (expiredDate <= productionDate) {
       throw new Error('Expired date must be after production date');
     }
-  }
-
-  async disposeBatch(batchId: number, disposedReason: string): Promise<void> {
-    const batch = await productBatchRepository.findById(batchId);
-    
-    if (!batch) {
-      throw new Error('Batch not found');
-    }
-
-    if (batch.status === 'DISPOSED') {
-      throw new Error('Batch is already disposed');
-    }
-
-    const validReasons = ['EXPIRED', 'WRONG_DATA', 'DEFECTIVE'];
-    if (!validReasons.includes(disposedReason)) {
-      throw new Error('Invalid disposed reason');
-    }
-
-    let finalReason = disposedReason;
-    if (batch.status === 'EXPIRED') {
-      finalReason = 'EXPIRED';
-    }
-
-    await productBatchRepository.updateStatus(batchId, 'DISPOSED', finalReason);
-  }
-
-  async updateBatchStatuses(): Promise<void> {
-    await productBatchRepository.updateExpiredStatuses();
   }
 }
 
