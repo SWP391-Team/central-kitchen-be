@@ -28,21 +28,6 @@ export class InventoryController {
     }
   };
 
-  getCentralKitchenInventory = async (req: Request, res: Response): Promise<void> => {
-    try {
-      const inventory = await inventoryService.getCentralKitchenInventory();
-      res.json({
-        success: true,
-        data: inventory,
-      });
-    } catch (error) {
-      console.error('Get central kitchen inventory error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Internal server error',
-      });
-    }
-  };
 
   disposeInventory = async (req: Request, res: Response): Promise<void> => {
     try {

@@ -1,13 +1,11 @@
 import productBatchRepository from '../repositories/productBatchRepository';
 import inventoryRepository from '../repositories/inventoryRepository';
-import { ProductBatchCreateDto, ProductBatchWithDetails } from '../models/ProductBatch';
-
-const CENTRAL_KITCHEN_STORE_ID = 1; 
+import { ProductBatchCreateDto, ProductBatchWithDetails } from '../models/ProductBatch'; 
 
 export class ProductBatchService {
-  async getAllBatchesWithDetails(): Promise<ProductBatchWithDetails[]> {
+  async getAllBatchesWithDetails(storeId: number = 1): Promise<ProductBatchWithDetails[]> {
     await inventoryRepository.updateExpiredStatuses();
-    return await inventoryRepository.findAllWithDetails(CENTRAL_KITCHEN_STORE_ID);
+    return await inventoryRepository.findAllWithDetails(storeId);
   }
 
   async getBatchesByStore(storeId: number): Promise<ProductBatchWithDetails[]> {
@@ -15,7 +13,7 @@ export class ProductBatchService {
     return await inventoryRepository.findAllWithDetails(storeId);
   }
 
-  async createBatches(batchesData: ProductBatchCreateDto[]): Promise<ProductBatchWithDetails[]> {
+  async createBatches(batchesData: ProductBatchCreateDto[], storeId: number = 1): Promise<ProductBatchWithDetails[]> {
     for (const batchData of batchesData) {
       this.validateBatch(batchData);
     }
@@ -26,12 +24,12 @@ export class ProductBatchService {
       const batch = await productBatchRepository.create(batchData);
 
       await inventoryRepository.create({
-        store_id: CENTRAL_KITCHEN_STORE_ID,
+        store_id: storeId,
         batch_id: batch.batch_id,
         quantity: batchData.quantity
       });
 
-      const batches = await inventoryRepository.findAllWithDetails(CENTRAL_KITCHEN_STORE_ID);
+      const batches = await inventoryRepository.findAllWithDetails(storeId);
       const createdBatch = batches.find(b => b.batch_id === batch.batch_id);
       
       if (createdBatch) {

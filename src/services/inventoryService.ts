@@ -35,18 +35,6 @@ export class InventoryService {
   async updateAllInventoryStatuses(): Promise<void> {
     await inventoryRepository.updateExpiredStatuses();
   }
-
-  async getCentralKitchenInventory(): Promise<ProductBatchWithDetails[]> {
-    return this.getInventoryByStore(1);
-  }
-
-  async getStoreDistrict1Inventory(): Promise<ProductBatchWithDetails[]> {
-    return this.getInventoryByStore(2);
-  }
-
-  async getStoreDistrict2Inventory(): Promise<ProductBatchWithDetails[]> {
-    return this.getInventoryByStore(3);
-  }
 }
 
 export default new InventoryService();
