@@ -15,7 +15,7 @@ export class ProductBatchService {
 
   async createBatches(batchesData: ProductBatchCreateDto[], storeId: number = 1): Promise<ProductBatchWithDetails[]> {
     for (const batchData of batchesData) {
-      this.validateBatch(batchData);
+      await this.validateBatch(batchData);
     }
 
     const createdBatches: ProductBatchWithDetails[] = [];
@@ -40,7 +40,25 @@ export class ProductBatchService {
     return createdBatches;
   }
 
-  private validateBatch(batchData: ProductBatchCreateDto): void {
+  private async validateBatch(batchData: ProductBatchCreateDto): Promise<void> {
+    if (!batchData.batch_code) {
+      throw new Error('Batch code is required');
+    }
+
+    const batchCodeRegex = /^BATCH-\d{6}-[A-Z0-9]{3}$/;
+    const upperBatchCode = batchData.batch_code.toUpperCase();
+
+    if (!batchCodeRegex.test(upperBatchCode)) {
+      throw new Error('Batch code must follow format: BATCH-YYYYMM-XXX');
+    }
+
+    batchData.batch_code = upperBatchCode;
+
+    const existingBatch = await productBatchRepository.findByBatchCode(upperBatchCode);
+    if (existingBatch) {
+      throw new Error(`Batch code ${upperBatchCode} already exists`);
+    }
+
     if (!batchData.quantity || batchData.quantity <= 0) {
       throw new Error('Quantity must be greater than 0');
     }

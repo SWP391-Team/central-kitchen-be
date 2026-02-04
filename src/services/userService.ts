@@ -20,6 +20,18 @@ export class UserService {
   }
 
   async createUser(userData: UserCreateDto): Promise<UserResponse> {
+    const userCodePattern = /^USR-\d{4}$/;
+    if (!userData.user_code || !userCodePattern.test(userData.user_code.toUpperCase())) {
+      throw new Error('Invalid user_code format. Expected format: USR-XXXX');
+    }
+
+    userData.user_code = userData.user_code.toUpperCase();
+
+    const existingUserCode = await this.userRepository.findByUserCode(userData.user_code);
+    if (existingUserCode) {
+      throw new Error('User code already exists');
+    }
+
     const existingUser = await this.userRepository.findByUsername(userData.username);
     if (existingUser) {
       throw new Error('Username already exists');
@@ -36,6 +48,10 @@ export class UserService {
   }
 
   async updateUser(userId: number, userData: UserUpdateDto): Promise<UserResponse | null> {
+    if ('user_code' in userData) {
+      throw new Error('Cannot modify user_code after creation');
+    }
+
     if (userData.username) {
       const existingUser = await this.userRepository.findByUsername(userData.username);
       if (existingUser && existingUser.user_id !== userId) {
@@ -58,6 +74,7 @@ export class UserService {
   private toUserResponse(user: any): UserResponse {
     return {
       user_id: user.user_id,
+      user_code: user.user_code,
       username: user.username,
       role_id: user.role_id,
       store_id: user.store_id,

@@ -1,5 +1,6 @@
 export interface Product {
   product_id: number;
+  product_code: string;
   product_name: string;
   unit: string;
   is_active: boolean;
@@ -8,6 +9,7 @@ export interface Product {
 }
 
 export interface ProductCreateDto {
+  product_code: string;
   product_name: string;
   unit: string;
 }
@@ -19,6 +21,7 @@ export interface ProductUpdateDto {
 
 export interface ProductResponse {
   product_id: number;
+  product_code: string;
   product_name: string;
   unit: string;
   is_active: boolean;

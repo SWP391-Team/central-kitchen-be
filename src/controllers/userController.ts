@@ -64,10 +64,10 @@ export class UserController {
     try {
       const userData: UserCreateDto = req.body;
 
-      if (!userData.username || !userData.password || !userData.role_id) {
+      if (!userData.user_code || !userData.username || !userData.password || !userData.role_id) {
         res.status(400).json({
           success: false,
-          message: 'Username, password, and role_id are required',
+          message: 'User code, username, password, and role_id are required',
         });
         return;
       }
@@ -79,11 +79,29 @@ export class UserController {
         data: user,
       });
     } catch (error) {
-      if (error instanceof Error && error.message === 'Username already exists') {
-        res.status(409).json({
-          success: false,
-          message: 'Username already exists',
-        });
+      if (error instanceof Error) {
+        if (error.message === 'Username already exists') {
+          res.status(409).json({
+            success: false,
+            message: 'Username already exists',
+          });
+        } else if (error.message === 'User code already exists') {
+          res.status(409).json({
+            success: false,
+            message: 'User code already exists',
+          });
+        } else if (error.message.includes('Invalid user_code format')) {
+          res.status(400).json({
+            success: false,
+            message: error.message,
+          });
+        } else {
+          console.error('Create user error:', error);
+          res.status(500).json({
+            success: false,
+            message: 'Internal server error',
+          });
+        }
       } else {
         console.error('Create user error:', error);
         res.status(500).json({
@@ -122,11 +140,24 @@ export class UserController {
         data: user,
       });
     } catch (error) {
-      if (error instanceof Error && error.message === 'Username already exists') {
-        res.status(409).json({
-          success: false,
-          message: 'Username already exists',
-        });
+      if (error instanceof Error) {
+        if (error.message === 'Username already exists') {
+          res.status(409).json({
+            success: false,
+            message: 'Username already exists',
+          });
+        } else if (error.message === 'Cannot modify user_code after creation') {
+          res.status(403).json({
+            success: false,
+            message: 'Cannot modify user_code after creation',
+          });
+        } else {
+          console.error('Update user error:', error);
+          res.status(500).json({
+            success: false,
+            message: 'Internal server error',
+          });
+        }
       } else {
         console.error('Update user error:', error);
         res.status(500).json({

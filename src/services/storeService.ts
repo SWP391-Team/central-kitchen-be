@@ -21,6 +21,18 @@ export class StoreService {
   }
 
   async createStore(storeData: StoreCreateDto): Promise<StoreResponse> {
+    const storeCodePattern = /^ST-[A-Z0-9]{3}-[A-Z0-9]{4}$/;
+    if (!storeData.store_code || !storeCodePattern.test(storeData.store_code.toUpperCase())) {
+      throw new Error('Invalid store_code format. Expected format: ST-XXX-XXXX');
+    }
+
+    storeData.store_code = storeData.store_code.toUpperCase();
+
+    const existingStoreCode = await this.storeRepository.findByStoreCode(storeData.store_code);
+    if (existingStoreCode) {
+      throw new Error('Store code already exists');
+    }
+
     const existingStore = await this.storeRepository.findByName(storeData.store_name);
     if (existingStore) {
       throw new Error('Store name already exists');
@@ -30,6 +42,10 @@ export class StoreService {
   }
 
   async updateStore(storeId: number, storeData: StoreUpdateDto): Promise<StoreResponse> {
+    if ('store_code' in storeData) {
+      throw new Error('Cannot modify store_code after creation');
+    }
+
     const store = await this.storeRepository.findById(storeId);
     if (!store) {
       throw new Error('Store not found');

@@ -8,7 +8,7 @@ export class StoreRepository {
     let paramCount = 1;
 
     if (params?.search) {
-      query += ` AND (LOWER(store_name) LIKE $${paramCount} OR LOWER(store_address) LIKE $${paramCount})`;
+      query += ` AND (LOWER(store_code) LIKE $${paramCount} OR LOWER(store_name) LIKE $${paramCount} OR LOWER(store_address) LIKE $${paramCount})`;
       values.push(`%${params.search.toLowerCase()}%`);
       paramCount++;
     }
@@ -41,13 +41,21 @@ export class StoreRepository {
     return result.rows[0] || null;
   }
 
-  async create(storeData: StoreCreateDto): Promise<Store> {
-    const { store_name, store_address, is_active = true } = storeData;
+  async findByStoreCode(storeCode: string): Promise<Store | null> {
     const result = await pool.query(
-      `INSERT INTO store (store_name, store_address, is_active) 
-       VALUES ($1, $2, $3) 
+      'SELECT * FROM store WHERE store_code = $1',
+      [storeCode]
+    );
+    return result.rows[0] || null;
+  }
+
+  async create(storeData: StoreCreateDto): Promise<Store> {
+    const { store_code, store_name, store_address, is_active = true } = storeData;
+    const result = await pool.query(
+      `INSERT INTO store (store_code, store_name, store_address, is_active) 
+       VALUES ($1, $2, $3, $4) 
        RETURNING *`,
-      [store_name, store_address, is_active]
+      [store_code, store_name, store_address, is_active]
     );
     return result.rows[0];
   }

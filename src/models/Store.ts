@@ -1,5 +1,6 @@
 export interface Store {
   store_id: number;
+  store_code: string;
   store_name: string;
   store_address: string;
   is_active: boolean;
@@ -8,6 +9,7 @@ export interface Store {
 }
 
 export interface StoreCreateDto {
+  store_code: string;
   store_name: string;
   store_address: string;
   is_active?: boolean;
@@ -21,6 +23,7 @@ export interface StoreUpdateDto {
 
 export interface StoreResponse {
   store_id: number;
+  store_code: string;
   store_name: string;
   store_address: string;
   is_active: boolean;

@@ -3,14 +3,20 @@ import { SupplyOrder, SupplyOrderCreateDto } from '../models/SupplyOrder';
 import { SupplyOrderItem, SupplyOrderItemCreateDto } from '../models/SupplyOrderItem';
 
 export class SupplyOrderRepository {
-  async create(storeId: number, createdBy: number): Promise<SupplyOrder> {
+  async create(supplyOrderCode: string, storeId: number, createdBy: number): Promise<SupplyOrder> {
     const query = `
-      INSERT INTO supply_order (store_id, status, created_by)
-      VALUES ($1, 'SUBMITTED', $2)
+      INSERT INTO supply_order (supply_order_code, store_id, status, created_by)
+      VALUES ($1, $2, 'SUBMITTED', $3)
       RETURNING *
     `;
-    const result = await pool.query(query, [storeId, createdBy]);
+    const result = await pool.query(query, [supplyOrderCode, storeId, createdBy]);
     return result.rows[0];
+  }
+
+  async findBySupplyOrderCode(supplyOrderCode: string): Promise<SupplyOrder | null> {
+    const query = 'SELECT * FROM supply_order WHERE supply_order_code = $1';
+    const result = await pool.query(query, [supplyOrderCode]);
+    return result.rows[0] || null;
   }
 
   async createItem(itemData: SupplyOrderItemCreateDto): Promise<SupplyOrderItem> {
@@ -50,6 +56,7 @@ export class SupplyOrderRepository {
       SELECT 
         soi.*,
         p.product_name,
+        p.product_code,
         p.unit,
         (
           SELECT COALESCE(SUM(i.quantity), 0)

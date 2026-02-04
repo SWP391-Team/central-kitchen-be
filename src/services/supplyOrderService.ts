@@ -13,6 +13,22 @@ export class SupplyOrderService {
     createdBy: number,
     orderData: SupplyOrderCreateDto
   ): Promise<any> {
+    if (!orderData.supply_order_code || !orderData.supply_order_code.trim()) {
+      throw new Error('Supply order code is required');
+    }
+
+    const supplyOrderCodeRegex = /^SO-\d{6}-\d{4}$/;
+    const upperSupplyOrderCode = orderData.supply_order_code.toUpperCase();
+
+    if (!supplyOrderCodeRegex.test(upperSupplyOrderCode)) {
+      throw new Error('Supply order code must follow format: SO-YYYYMM-XXXX');
+    }
+
+    const existingOrder = await supplyOrderRepository.findBySupplyOrderCode(upperSupplyOrderCode);
+    if (existingOrder) {
+      throw new Error(`Supply order code ${upperSupplyOrderCode} already exists`);
+    }
+
     if (!orderData.items || orderData.items.length === 0) {
       throw new Error('Supply order must have at least one item');
     }
@@ -36,7 +52,7 @@ export class SupplyOrderService {
       }
     }
 
-    const supplyOrder = await supplyOrderRepository.create(storeId, createdBy);
+    const supplyOrder = await supplyOrderRepository.create(upperSupplyOrderCode, storeId, createdBy);
 
     for (const item of orderData.items) {
       await supplyOrderRepository.createItem({

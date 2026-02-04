@@ -24,6 +24,12 @@ export class ProductRepository {
     return result.rows[0] || null;
   }
 
+  async findByProductCode(productCode: string): Promise<Product | null> {
+    const query = 'SELECT * FROM product WHERE product_code = $1';
+    const result = await pool.query(query, [productCode]);
+    return result.rows[0] || null;
+  }
+
   async existsByNameAndUnit(productName: string, unit: string, excludeId?: number): Promise<boolean> {
     const normalizedName = this.normalizeText(productName);
     const normalizedUnit = this.normalizeText(unit);
@@ -45,12 +51,12 @@ export class ProductRepository {
     const normalizedUnit = this.normalizeText(productData.unit);
 
     const query = `
-      INSERT INTO product (product_name, unit)
-      VALUES ($1, $2)
+      INSERT INTO product (product_code, product_name, unit)
+      VALUES ($1, $2, $3)
       RETURNING *
     `;
     
-    const result = await pool.query(query, [normalizedName, normalizedUnit]);
+    const result = await pool.query(query, [productData.product_code, normalizedName, normalizedUnit]);
     return result.rows[0];
   }
 

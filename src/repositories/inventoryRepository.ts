@@ -90,8 +90,10 @@ export class InventoryRepository {
     const query = `
       SELECT 
         pb.batch_id,
+        pb.batch_code,
         pb.product_id,
         p.product_name,
+        p.product_code,
         p.unit,
         pb.production_date,
         pb.expired_date,

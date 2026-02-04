@@ -25,13 +25,21 @@ export class UserRepository {
     return result.rows[0] || null;
   }
 
-  async create(userData: UserCreateDto): Promise<User> {
-    const { username, password, role_id, store_id, is_active = true } = userData;
+  async findByUserCode(userCode: string): Promise<User | null> {
     const result = await pool.query(
-      `INSERT INTO "user" (username, password, role_id, store_id, is_active) 
-       VALUES ($1, $2, $3, $4, $5) 
+      'SELECT * FROM "user" WHERE user_code = $1',
+      [userCode]
+    );
+    return result.rows[0] || null;
+  }
+
+  async create(userData: UserCreateDto): Promise<User> {
+    const { user_code, username, password, role_id, store_id, is_active = true } = userData;
+    const result = await pool.query(
+      `INSERT INTO "user" (user_code, username, password, role_id, store_id, is_active) 
+       VALUES ($1, $2, $3, $4, $5, $6) 
        RETURNING *`,
-      [username, password, role_id, store_id, is_active]
+      [user_code, username, password, role_id, store_id, is_active]
     );
     return result.rows[0];
   }

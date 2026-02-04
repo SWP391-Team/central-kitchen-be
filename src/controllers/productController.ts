@@ -82,7 +82,22 @@ export class ProductController {
       });
     } catch (error: any) {
       console.error('Create product error:', error);
-      if (error.message.includes('required') || error.message.includes('already exists')) {
+      if (error.message.includes('required')) {
+        res.status(400).json({
+          success: false,
+          message: error.message,
+        });
+      } else if (error.message === 'Product code already exists') {
+        res.status(409).json({
+          success: false,
+          message: error.message,
+        });
+      } else if (error.message.includes('Invalid product_code format')) {
+        res.status(400).json({
+          success: false,
+          message: error.message,
+        });
+      } else if (error.message.includes('already exists')) {
         res.status(400).json({
           success: false,
           message: error.message,
@@ -121,6 +136,11 @@ export class ProductController {
       console.error('Update product error:', error);
       if (error.message === 'Product not found') {
         res.status(404).json({
+          success: false,
+          message: error.message,
+        });
+      } else if (error.message === 'Cannot modify product_code after creation') {
+        res.status(403).json({
           success: false,
           message: error.message,
         });

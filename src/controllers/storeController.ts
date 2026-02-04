@@ -69,10 +69,10 @@ export class StoreController {
     try {
       const storeData: StoreCreateDto = req.body;
 
-      if (!storeData.store_name || !storeData.store_address) {
+      if (!storeData.store_code || !storeData.store_name || !storeData.store_address) {
         res.status(400).json({
           success: false,
-          message: 'Store name and address are required',
+          message: 'Store code, name and address are required',
         });
         return;
       }
@@ -88,6 +88,16 @@ export class StoreController {
       console.error('Create store error:', error);
       if (error.message === 'Store name already exists') {
         res.status(409).json({
+          success: false,
+          message: error.message,
+        });
+      } else if (error.message === 'Store code already exists') {
+        res.status(409).json({
+          success: false,
+          message: error.message,
+        });
+      } else if (error.message.includes('Invalid store_code format')) {
+        res.status(400).json({
           success: false,
           message: error.message,
         });
@@ -138,6 +148,11 @@ export class StoreController {
         });
       } else if (error.message === 'Store name already exists') {
         res.status(409).json({
+          success: false,
+          message: error.message,
+        });
+      } else if (error.message === 'Cannot modify store_code after creation') {
+        res.status(403).json({
           success: false,
           message: error.message,
         });

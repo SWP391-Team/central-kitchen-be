@@ -1,5 +1,6 @@
 export interface ProductBatch {
   batch_id: number;
+  batch_code: string;
   product_id: number;
   production_date: Date;
   expired_date: Date;
@@ -7,6 +8,7 @@ export interface ProductBatch {
 }
 
 export interface ProductBatchCreateDto {
+  batch_code: string;
   product_id: number;
   production_date: Date;
   expired_date: Date;
@@ -20,6 +22,7 @@ export interface ProductBatchUpdateDto {
 
 export interface ProductBatchWithDetails {
   batch_id: number;
+  batch_code: string;
   product_id: number;
   product_name: string;
   unit: string;
