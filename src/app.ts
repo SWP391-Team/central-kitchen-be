@@ -9,6 +9,7 @@ import productRouter from './routers/productRouter';
 import productBatchRouter from './routers/productBatchRouter';
 import inventoryRouter from './routers/inventoryRouter';
 import supplyOrderRouter from './routers/supplyOrderRouter';
+import kitchenProductionRouter from './routers/kitchenProductionRouter';
 
 dotenv.config();
 
@@ -24,6 +25,7 @@ app.use('/api/products', productRouter);
 app.use('/api/batches', productBatchRouter);
 app.use('/api/inventory', inventoryRouter);
 app.use('/api/supply-orders', supplyOrderRouter);
+app.use('/api/kitchen-production', kitchenProductionRouter);
 
 app.get('/api/health', async (req, res) => {
   try {

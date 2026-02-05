@@ -57,7 +57,7 @@ export class ProductBatchController {
         return;
       }
 
-      const createdBatches = await productBatchService.createBatches(batchesData);
+      const createdBatches = await productBatchService.createBatchPlans(batchesData);
       
       res.status(201).json({
         success: true,

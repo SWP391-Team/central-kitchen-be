@@ -99,9 +99,9 @@ export class InventoryRepository {
         pb.expired_date,
         pb.created_at,
         i.inventory_id,
-        i.quantity,
-        i.status,
-        i.disposed_reason,
+        i.quantity as inventory_quantity,
+        i.status as inventory_status,
+        i.disposed_reason as inventory_disposed_reason,
         i.disposed_at
       FROM inventory i
       INNER JOIN product_batch pb ON i.batch_id = pb.batch_id
