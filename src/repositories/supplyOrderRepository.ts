@@ -1,6 +1,7 @@
 import pool from '../config/database';
 import { SupplyOrder, SupplyOrderCreateDto } from '../models/SupplyOrder';
 import { SupplyOrderItem, SupplyOrderItemCreateDto } from '../models/SupplyOrderItem';
+import * as supplyOrderItemBatchRepository from './supplyOrderItemBatchRepository';
 
 export class SupplyOrderRepository {
   async create(supplyOrderCode: string, storeId: number, createdBy: number): Promise<SupplyOrder> {
@@ -73,41 +74,137 @@ export class SupplyOrderRepository {
     `;
     const itemsResult = await pool.query(itemsQuery, [orderId]);
 
+    const itemsWithBatches = await Promise.all(
+      itemsResult.rows.map(async (item) => {
+        const batches = await supplyOrderItemBatchRepository.findBySupplyOrderItemId(item.supply_order_item_id);
+        return {
+          ...item,
+          batches
+        };
+      })
+    );
+
     return {
       ...order,
-      items: itemsResult.rows
+      items: itemsWithBatches
     };
   }
 
-  async findByStoreId(storeId: number): Promise<SupplyOrder[]> {
+  async findByStoreId(storeId: number): Promise<any[]> {
     const query = `
       SELECT 
         so.*,
         s.store_name,
-        u.username as created_by_username
+        u.username as created_by_username,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'supply_order_item_id', soi.supply_order_item_id,
+              'product_id', soi.product_id,
+              'requested_quantity', soi.requested_quantity,
+              'approved_quantity', soi.approved_quantity,
+              'status', soi.status,
+              'product_code', p.product_code,
+              'product_name', p.product_name,
+              'unit', p.unit
+            )
+          ) FILTER (WHERE soi.supply_order_item_id IS NOT NULL), 
+          '[]'
+        ) as items
       FROM supply_order so
       LEFT JOIN store s ON so.store_id = s.store_id
       LEFT JOIN "user" u ON so.created_by = u.user_id
+      LEFT JOIN supply_order_item soi ON so.supply_order_id = soi.supply_order_id
+      LEFT JOIN product p ON soi.product_id = p.product_id
       WHERE so.store_id = $1
+      GROUP BY so.supply_order_id, s.store_name, u.username
       ORDER BY so.created_at DESC
     `;
     const result = await pool.query(query, [storeId]);
-    return result.rows;
+    
+    const ordersWithBatches = await Promise.all(
+      result.rows.map(async (order) => {
+        const batches = await supplyOrderItemBatchRepository.findBySupplyOrderId(order.supply_order_id);
+        
+        const batchesByItem: { [key: number]: any[] } = {};
+        batches.forEach(batch => {
+          if (!batchesByItem[batch.supply_order_item_id]) {
+            batchesByItem[batch.supply_order_item_id] = [];
+          }
+          batchesByItem[batch.supply_order_item_id].push(batch);
+        });
+        
+        const itemsWithBatches = order.items.map((item: any) => ({
+          ...item,
+          batches: batchesByItem[item.supply_order_item_id] || []
+        }));
+        
+        return {
+          ...order,
+          items: itemsWithBatches
+        };
+      })
+    );
+    
+    return ordersWithBatches;
   }
 
-  async findAll(): Promise<SupplyOrder[]> {
+  async findAll(): Promise<any[]> {
     const query = `
       SELECT 
         so.*,
         s.store_name,
-        u.username as created_by_username
+        u.username as created_by_username,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'supply_order_item_id', soi.supply_order_item_id,
+              'product_id', soi.product_id,
+              'requested_quantity', soi.requested_quantity,
+              'approved_quantity', soi.approved_quantity,
+              'status', soi.status,
+              'product_code', p.product_code,
+              'product_name', p.product_name,
+              'unit', p.unit
+            )
+          ) FILTER (WHERE soi.supply_order_item_id IS NOT NULL), 
+          '[]'
+        ) as items
       FROM supply_order so
       LEFT JOIN store s ON so.store_id = s.store_id
       LEFT JOIN "user" u ON so.created_by = u.user_id
+      LEFT JOIN supply_order_item soi ON so.supply_order_id = soi.supply_order_id
+      LEFT JOIN product p ON soi.product_id = p.product_id
+      GROUP BY so.supply_order_id, s.store_name, u.username
       ORDER BY so.created_at DESC
     `;
     const result = await pool.query(query);
-    return result.rows;
+    
+    const ordersWithBatches = await Promise.all(
+      result.rows.map(async (order) => {
+        const batches = await supplyOrderItemBatchRepository.findBySupplyOrderId(order.supply_order_id);
+        
+        const batchesByItem: { [key: number]: any[] } = {};
+        batches.forEach(batch => {
+          if (!batchesByItem[batch.supply_order_item_id]) {
+            batchesByItem[batch.supply_order_item_id] = [];
+          }
+          batchesByItem[batch.supply_order_item_id].push(batch);
+        });
+        
+        const itemsWithBatches = order.items.map((item: any) => ({
+          ...item,
+          batches: batchesByItem[item.supply_order_item_id] || []
+        }));
+        
+        return {
+          ...order,
+          items: itemsWithBatches
+        };
+      })
+    );
+    
+    return ordersWithBatches;
   }
 
   async updateStatus(orderId: number, status: string): Promise<SupplyOrder | null> {
@@ -189,10 +286,12 @@ export class SupplyOrderRepository {
       await pool.query(updateQuery, [quantity, batchId, storeId]);
     } else {
       const insertQuery = `
-        INSERT INTO inventory (batch_id, store_id, quantity)
-        VALUES ($1, $2, $3)
+        INSERT INTO inventory (batch_id, store_id, quantity, status)
+        VALUES ($1, $2, $3, 'ACTIVE')
       `;
       await pool.query(insertQuery, [batchId, storeId, quantity]);
     }
   }
 }
+
+export default new SupplyOrderRepository();

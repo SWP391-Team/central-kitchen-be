@@ -4,7 +4,11 @@ export interface SupplyOrderItem {
   product_id: number;
   requested_quantity: number;
   approved_quantity: number | null;
-  status: string; 
+  status: string;
+  
+  product_code?: string;
+  product_name?: string;
+  unit?: string;
 }
 
 export interface SupplyOrderItemCreateDto {

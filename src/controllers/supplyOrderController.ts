@@ -372,12 +372,21 @@ export class SupplyOrderController {
         return;
       }
 
-      const order = await supplyOrderService.confirmReceived(orderId);
+      const { batches } = req.body;
+      if (!batches || !Array.isArray(batches) || batches.length === 0) {
+        res.status(400).json({
+          success: false,
+          message: 'Batches array with receipted quantities is required',
+        });
+        return;
+      }
+
+      const order = await supplyOrderService.confirmReceived(orderId, batches);
 
       res.json({
         success: true,
         data: order,
-        message: 'Order confirmed as received and inventory updated successfully',
+        message: 'Order confirmed as received successfully',
       });
     } catch (error: any) {
       console.error('Confirm received error:', error);
@@ -387,6 +396,109 @@ export class SupplyOrderController {
       res.status(statusCode).json({
         success: false,
         message: error.message || 'Failed to confirm received',
+      });
+    }
+  };
+
+  stockSupplyOrder = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const user = req.user;
+
+      if (!user) {
+        res.status(401).json({
+          success: false,
+          message: 'Unauthorized',
+        });
+        return;
+      }
+
+      if (user.role_id !== 3) {
+        res.status(403).json({
+          success: false,
+          message: 'Only Store Staff can stock orders',
+        });
+        return;
+      }
+
+      const orderId = parseInt(req.params.id as string);
+      if (isNaN(orderId)) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid order ID',
+        });
+        return;
+      }
+
+      const { batches } = req.body;
+      if (!batches || !Array.isArray(batches) || batches.length === 0) {
+        res.status(400).json({
+          success: false,
+          message: 'Batches array with stocked quantities is required',
+        });
+        return;
+      }
+
+      const order = await supplyOrderService.stockSupplyOrder(orderId, batches);
+
+      res.json({
+        success: true,
+        data: order,
+        message: 'Order stocked successfully',
+      });
+    } catch (error: any) {
+      console.error('Stock order error:', error);
+      const statusCode = error.message.includes('not found') ? 404 :
+                         error.message.includes('Only Store Staff') ? 403 :
+                         error.message.includes('RECEIPTED') ? 400 : 400;
+      res.status(statusCode).json({
+        success: false,
+        message: error.message || 'Failed to stock order',
+      });
+    }
+  };
+
+  cancelSupplyOrder = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const user = req.user;
+
+      if (!user) {
+        res.status(401).json({
+          success: false,
+          message: 'Unauthorized',
+        });
+        return;
+      }
+
+      if (user.role_id !== 2 && user.role_id !== 3) {
+        res.status(403).json({
+          success: false,
+          message: 'Only Central Staff or Store Staff can cancel orders',
+        });
+        return;
+      }
+
+      const orderId = parseInt(req.params.id as string);
+      if (isNaN(orderId)) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid order ID',
+        });
+        return;
+      }
+
+      const order = await supplyOrderService.cancelSupplyOrder(orderId);
+
+      res.json({
+        success: true,
+        data: order,
+        message: 'Supply order cancelled successfully',
+      });
+    } catch (error: any) {
+      console.error('Cancel order error:', error);
+      const statusCode = error.message.includes('not found') ? 404 : 400;
+      res.status(statusCode).json({
+        success: false,
+        message: error.message || 'Failed to cancel order',
       });
     }
   };
