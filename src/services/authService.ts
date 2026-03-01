@@ -12,6 +12,7 @@ export interface AuthResponse {
   token: string;
   user: {
     user_id: number;
+    user_code: string;
     username: string;
     role_id: number;
     store_id: number | null;
@@ -68,6 +69,7 @@ export class AuthService {
       token,
       user: {
         user_id: user.user_id,
+        user_code: user.user_code,
         username: user.username,
         role_id: user.role_id,
         store_id: user.store_id,
