@@ -5,7 +5,16 @@ import { ProductCreateDto, ProductUpdateDto } from '../models/Product';
 export class ProductController {
   getAllProducts = async (req: Request, res: Response): Promise<void> => {
     try {
-      const products = await productService.getAllProducts();
+      const { status } = req.query;
+      let isActive: boolean | undefined = undefined;
+      
+      if (status === 'active') {
+        isActive = true;
+      } else if (status === 'inactive') {
+        isActive = false;
+      }
+      
+      const products = await productService.getAllProducts(isActive);
       res.json({
         success: true,
         data: products,

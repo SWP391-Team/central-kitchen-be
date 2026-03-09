@@ -3,20 +3,22 @@ export interface Product {
   product_code: string;
   product_name: string;
   unit: string;
+  shelf_life_days: number;
   is_active: boolean;
   created_at?: Date;
   updated_at?: Date;
 }
 
 export interface ProductCreateDto {
-  product_code: string;
   product_name: string;
   unit: string;
+  shelf_life_days: number;
 }
 
 export interface ProductUpdateDto {
   product_name?: string;
   unit?: string;
+  shelf_life_days?: number;
 }
 
 export interface ProductResponse {
@@ -24,6 +26,7 @@ export interface ProductResponse {
   product_code: string;
   product_name: string;
   unit: string;
+  shelf_life_days: number;
   is_active: boolean;
   created_at: Date;
   updated_at: Date;

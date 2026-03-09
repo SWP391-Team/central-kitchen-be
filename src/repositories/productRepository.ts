@@ -6,9 +6,17 @@ export class ProductRepository {
     return text.trim().toUpperCase();
   }
 
-  async findAll(): Promise<Product[]> {
-    const query = 'SELECT * FROM product ORDER BY created_at DESC';
-    const result = await pool.query(query);
+  async findAll(isActive?: boolean): Promise<Product[]> {
+    let query = 'SELECT * FROM product';
+    const params: any[] = [];
+    
+    if (isActive !== undefined) {
+      query += ' WHERE is_active = $1';
+      params.push(isActive);
+    }
+    
+    query += ' ORDER BY created_at DESC';
+    const result = await pool.query(query, params);
     return result.rows;
   }
 
@@ -46,17 +54,40 @@ export class ProductRepository {
     return parseInt(result.rows[0].count) > 0;
   }
 
+  async getNextProductCodeNumber(): Promise<number> {
+    const query = `
+      SELECT product_code 
+      FROM product 
+      WHERE product_code LIKE 'PRD-%' 
+      ORDER BY product_code DESC 
+      LIMIT 1
+    `;
+    const result = await pool.query(query);
+    
+    if (result.rows.length === 0) {
+      return 1;
+    }
+    
+    const lastProductCode = result.rows[0].product_code;
+    const lastNumber = parseInt(lastProductCode.substring(4)); // Extract number after 'PRD-'
+    
+    return lastNumber + 1;
+  }
+
   async create(productData: ProductCreateDto): Promise<Product> {
     const normalizedName = this.normalizeText(productData.product_name);
     const normalizedUnit = this.normalizeText(productData.unit);
 
+    const nextNumber = await this.getNextProductCodeNumber();
+    const productCode = `PRD-${nextNumber.toString().padStart(4, '0')}`;
+
     const query = `
-      INSERT INTO product (product_code, product_name, unit)
-      VALUES ($1, $2, $3)
+      INSERT INTO product (product_code, product_name, unit, shelf_life_days)
+      VALUES ($1, $2, $3, $4)
       RETURNING *
     `;
     
-    const result = await pool.query(query, [productData.product_code, normalizedName, normalizedUnit]);
+    const result = await pool.query(query, [productCode, normalizedName, normalizedUnit, productData.shelf_life_days]);
     return result.rows[0];
   }
 
@@ -74,6 +105,12 @@ export class ProductRepository {
     if (productData.unit !== undefined) {
       updates.push(`unit = $${paramCount}`);
       values.push(this.normalizeText(productData.unit));
+      paramCount++;
+    }
+
+    if (productData.shelf_life_days !== undefined) {
+      updates.push(`shelf_life_days = $${paramCount}`);
+      values.push(productData.shelf_life_days);
       paramCount++;
     }
 

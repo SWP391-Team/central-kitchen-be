@@ -2,8 +2,8 @@ import productRepository from '../repositories/productRepository';
 import { Product, ProductCreateDto, ProductUpdateDto } from '../models/Product';
 
 export class ProductService {
-  async getAllProducts(): Promise<Product[]> {
-    return await productRepository.findAll();
+  async getAllProducts(isActive?: boolean): Promise<Product[]> {
+    return await productRepository.findAll(isActive);
   }
 
   async getActiveProducts(): Promise<Product[]> {
@@ -19,23 +19,19 @@ export class ProductService {
   }
 
   async createProduct(productData: ProductCreateDto): Promise<Product> {
-    const productCodePattern = /^PRD-[A-Z0-9]{4}$/;
-    if (!productData.product_code || !productCodePattern.test(productData.product_code.toUpperCase())) {
-      throw new Error('Invalid product_code format. Expected format: PRD-XXXX');
-    }
-
-    productData.product_code = productData.product_code.toUpperCase();
-
-    const existingProductCode = await productRepository.findByProductCode(productData.product_code);
-    if (existingProductCode) {
-      throw new Error('Product code already exists');
-    }
-
     if (!productData.product_name || !productData.product_name.trim()) {
       throw new Error('Product name is required');
     }
     if (!productData.unit || !productData.unit.trim()) {
       throw new Error('Unit is required');
+    }
+
+    if (!productData.shelf_life_days || productData.shelf_life_days <= 0) {
+      throw new Error('Shelf life must be greater than 0');
+    }
+
+    if (!Number.isInteger(productData.shelf_life_days)) {
+      throw new Error('Shelf life must be an integer');
     }
 
     const exists = await productRepository.existsByNameAndUnit(
@@ -51,7 +47,6 @@ export class ProductService {
   }
 
   async updateProduct(productId: number, productData: ProductUpdateDto): Promise<Product> {
-    // Prevent product_code modification
     if ('product_code' in productData) {
       throw new Error('Cannot modify product_code after creation');
     }
@@ -66,6 +61,15 @@ export class ProductService {
     }
     if (productData.unit !== undefined && !productData.unit.trim()) {
       throw new Error('Unit cannot be empty');
+    }
+
+    if (productData.shelf_life_days !== undefined) {
+      if (productData.shelf_life_days <= 0) {
+        throw new Error('Shelf life must be greater than 0');
+      }
+      if (!Number.isInteger(productData.shelf_life_days)) {
+        throw new Error('Shelf life must be an integer');
+      }
     }
 
     if (productData.product_name || productData.unit) {
