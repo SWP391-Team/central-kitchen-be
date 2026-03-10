@@ -143,6 +143,37 @@ export class ProductionBatchRepository {
     const result = await pool.query(query, [batchId]);
     return result.rows[0] || null;
   }
+
+  async updateStatus(batchId: number, status: string): Promise<ProductionBatch | null> {
+    const query = `
+      UPDATE production_batch
+      SET status = $1
+      WHERE batch_id = $2
+      RETURNING *
+    `;
+    
+    const result = await pool.query(query, [status, batchId]);
+    return result.rows[0] || null;
+  }
+
+  async getAllBatches(): Promise<ProductionBatchWithDetails[]> {
+    const query = `
+      SELECT 
+        pb.*,
+        pp.plan_code,
+        p.product_name,
+        p.product_code,
+        u.username as created_by_username
+      FROM production_batch pb
+      LEFT JOIN production_plan pp ON pb.plan_id = pp.plan_id
+      LEFT JOIN product p ON pb.product_id = p.product_id
+      LEFT JOIN "user" u ON pb.created_by = u.user_id
+      ORDER BY pb.created_at DESC
+    `;
+    
+    const result = await pool.query(query);
+    return result.rows;
+  }
 }
 
 export default new ProductionBatchRepository();

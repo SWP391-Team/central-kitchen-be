@@ -119,7 +119,6 @@ export class ProductionBatchService {
       throw new Error('Failed to cancel batch');
     }
 
-    // Recalculate plan quantities after cancelling batch
     await productionPlanRepository.updateQuantities(batch.plan_id);
     await productionPlanRepository.updateAutoStatus(batch.plan_id);
 
@@ -129,6 +128,29 @@ export class ProductionBatchService {
       batch: updatedBatch,
       plan: updatedPlan
     };
+  }
+
+  async sendToQC(batchId: number): Promise<any> {
+    const batch = await productionBatchRepository.findById(batchId);
+    if (!batch) {
+      throw new Error('Batch not found');
+    }
+
+    if (batch.status !== 'produced') {
+      throw new Error('Can only send batches with status "produced" to QC');
+    }
+
+    const updatedBatch = await productionBatchRepository.updateStatus(batchId, 'waiting_qc');
+
+    if (!updatedBatch) {
+      throw new Error('Failed to send batch to QC');
+    }
+
+    return updatedBatch;
+  }
+
+  async getAllBatches(): Promise<any> {
+    return await productionBatchRepository.getAllBatches();
   }
 }
 

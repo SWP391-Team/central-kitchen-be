@@ -207,6 +207,68 @@ export class ProductionBatchController {
       });
     }
   };
+
+  sendToQC = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const user = req.user;
+      if (!user) {
+        res.status(401).json({
+          success: false,
+          message: 'Unauthorized',
+        });
+        return;
+      }
+
+      const batchId = parseInt(req.params.id as string);
+      if (isNaN(batchId)) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid batch ID',
+        });
+        return;
+      }
+
+      const result = await productionBatchService.sendToQC(batchId);
+
+      res.json({
+        success: true,
+        data: result,
+        message: 'Batch sent to QC successfully',
+      });
+    } catch (error: any) {
+      console.error('Send to QC error:', error);
+      res.status(400).json({
+        success: false,
+        message: error.message || 'Failed to send batch to QC',
+      });
+    }
+  };
+
+  getAllBatches = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const user = req.user;
+      if (!user) {
+        res.status(401).json({
+          success: false,
+          message: 'Unauthorized',
+        });
+        return;
+      }
+
+      const batches = await productionBatchService.getAllBatches();
+
+      res.json({
+        success: true,
+        data: batches,
+      });
+    } catch (error: any) {
+      console.error('Get all batches error:', error);
+      res.status(400).json({
+        success: false,
+        message: error.message || 'Failed to get batches',
+      });
+    }
+  };
 }
 
 export default new ProductionBatchController();
