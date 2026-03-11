@@ -87,7 +87,6 @@ export class QualityInspectionService {
       throw new Error('Batch not found');
     }
 
-    // Get source quantity (considering rework history at inspection time)
     const completedReworks = await reworkRecordRepository.getCompletedReworksBeforeDate(
       inspection.batch_id,
       new Date(inspection.created_at)
@@ -95,7 +94,6 @@ export class QualityInspectionService {
     
     let sourceQty = batch.produced_qty!;
     if (completedReworks.length > 0) {
-      // Get the latest rework before inspection
       const latestRework = completedReworks[completedReworks.length - 1];
       sourceQty = latestRework.reworkable_qty!;
     }
@@ -137,15 +135,57 @@ export class QualityInspectionService {
         );
 
         if (isMaxInspection) {
+          const samplingPassedQuery = `
+            SELECT quality_inspection_id 
+            FROM quality_inspection
+            WHERE batch_id = $1 
+              AND inspection_mode = 'sampling'
+              AND status = 'Passed'
+              AND batch_status_at_inspection = 'qc_passed'
+            LIMIT 1
+          `;
+          const samplingResult = await client.query(samplingPassedQuery, [inspection.batch_id]);
+          
           let goodQty = 0;
           let defectQty = 0;
 
-          if (data.failed_qty === 0) {
+          if (samplingResult.rows.length > 0) {
             goodQty = batch.produced_qty!;
             defectQty = 0;
-          } else if (data.inspection_mode === 'full') {
-            goodQty = data.passed_qty;
-            defectQty = data.failed_qty;
+          } else {
+            const goodQtyQuery = `
+              SELECT COALESCE(SUM(passed_qty), 0) as total_passed
+              FROM quality_inspection
+              WHERE batch_id = $1 
+                AND inspection_mode = 'full'
+                AND status IN ('Passed', 'Failed')
+                AND batch_status_at_inspection IN ('qc_passed', 'qc_failed')
+            `;
+            const goodQtyResult = await client.query(goodQtyQuery, [inspection.batch_id]);
+            goodQty = parseInt(goodQtyResult.rows[0].total_passed);
+
+            const nonReworkableQuery = `
+              SELECT COALESCE(SUM(non_reworkable_qty), 0) as total_non_reworkable
+              FROM rework_record
+              WHERE batch_id = $1
+            `;
+            const nonReworkableResult = await client.query(nonReworkableQuery, [inspection.batch_id]);
+            const totalNonReworkable = parseInt(nonReworkableResult.rows[0].total_non_reworkable);
+
+            const lastFullInspectionQuery = `
+              SELECT failed_qty
+              FROM quality_inspection
+              WHERE batch_id = $1 
+                AND inspection_mode = 'full'
+                AND status IN ('Passed', 'Failed')
+                AND batch_status_at_inspection IN ('qc_passed', 'qc_failed')
+              ORDER BY inspection_no DESC
+              LIMIT 1
+            `;
+            const lastFullResult = await client.query(lastFullInspectionQuery, [inspection.batch_id]);
+            const lastFullFailedQty = lastFullResult.rows.length > 0 ? (lastFullResult.rows[0].failed_qty || 0) : 0;
+
+            defectQty = totalNonReworkable + lastFullFailedQty;
           }
 
           await client.query(
@@ -253,8 +293,77 @@ export class QualityInspectionService {
       await client.query('BEGIN');
 
       await client.query(
-        `UPDATE production_batch SET status = 'rejected' WHERE batch_id = $1`,
+        `UPDATE production_batch 
+         SET status = 'rejected' 
+         WHERE batch_id = $1`,
         [batchId]
+      );
+
+      await client.query(
+        `UPDATE quality_inspection 
+         SET batch_status_at_inspection = 'rejected' 
+         WHERE quality_inspection_id = $1`,
+        [latestInspection.quality_inspection_id]
+      );
+
+      const samplingPassedQuery = `
+        SELECT quality_inspection_id 
+        FROM quality_inspection
+        WHERE batch_id = $1 
+          AND inspection_mode = 'sampling'
+          AND status = 'Passed'
+          AND batch_status_at_inspection = 'qc_passed'
+        LIMIT 1
+      `;
+      const samplingResult = await client.query(samplingPassedQuery, [batchId]);
+      
+      let goodQty = 0;
+      let defectQty = 0;
+
+      if (samplingResult.rows.length > 0) {
+        goodQty = batch.produced_qty!;
+        defectQty = 0;
+      } else {
+        const goodQtyQuery = `
+          SELECT COALESCE(SUM(passed_qty), 0) as total_passed
+          FROM quality_inspection
+          WHERE batch_id = $1 
+            AND inspection_mode = 'full'
+            AND status IN ('Passed', 'Failed')
+            AND batch_status_at_inspection IN ('qc_passed', 'qc_failed')
+        `;
+        const goodQtyResult = await client.query(goodQtyQuery, [batchId]);
+        goodQty = parseInt(goodQtyResult.rows[0].total_passed);
+
+        const nonReworkableQuery = `
+          SELECT COALESCE(SUM(non_reworkable_qty), 0) as total_non_reworkable
+          FROM rework_record
+          WHERE batch_id = $1
+        `;
+        const nonReworkableResult = await client.query(nonReworkableQuery, [batchId]);
+        const totalNonReworkable = parseInt(nonReworkableResult.rows[0].total_non_reworkable);
+
+        const lastFullInspectionQuery = `
+          SELECT failed_qty
+          FROM quality_inspection
+          WHERE batch_id = $1 
+            AND inspection_mode = 'full'
+            AND status IN ('Passed', 'Failed')
+            AND batch_status_at_inspection IN ('qc_passed', 'qc_failed')
+          ORDER BY inspection_no DESC
+          LIMIT 1
+        `;
+        const lastFullResult = await client.query(lastFullInspectionQuery, [batchId]);
+        const lastFullFailedQty = lastFullResult.rows.length > 0 ? (lastFullResult.rows[0].failed_qty || 0) : 0;
+
+        defectQty = totalNonReworkable + lastFullFailedQty;
+      }
+
+      await client.query(
+        `UPDATE production_batch 
+         SET good_qty = $1, defect_qty = $2 
+         WHERE batch_id = $3`,
+        [goodQty, defectQty, batchId]
       );
 
       await client.query('COMMIT');
