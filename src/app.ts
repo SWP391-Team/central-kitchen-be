@@ -9,6 +9,7 @@ import productRouter from './routers/productRouter';
 import productionPlanRouter from './routers/productionPlanRouter';
 import productionBatchRouter from './routers/productionBatchRouter';
 import qualityInspectionRouter from './routers/qualityInspectionRouter';
+import reworkRecordRouter from './routers/reworkRecordRouter';
 
 dotenv.config();
 
@@ -24,6 +25,7 @@ app.use('/api/products', productRouter);
 app.use('/api/production-plans', productionPlanRouter);
 app.use('/api/production-batches', productionBatchRouter);
 app.use('/api/quality-inspections', qualityInspectionRouter);
+app.use('/api/rework-records', reworkRecordRouter);
 
 app.get('/api/health', async (req, res) => {
   try {

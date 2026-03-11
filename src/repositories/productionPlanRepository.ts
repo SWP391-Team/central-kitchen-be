@@ -165,12 +165,12 @@ export class ProductionPlanRepository {
         actual_qty = COALESCE((
           SELECT SUM(produced_qty) 
           FROM production_batch 
-          WHERE plan_id = $1 AND status = 'produced' AND produced_qty IS NOT NULL
+          WHERE plan_id = $1 AND status != 'cancelled' AND produced_qty IS NOT NULL
         ), 0),
         variance_qty = COALESCE((
           SELECT SUM(produced_qty) 
           FROM production_batch 
-          WHERE plan_id = $1 AND status = 'produced' AND produced_qty IS NOT NULL
+          WHERE plan_id = $1 AND status != 'cancelled' AND produced_qty IS NOT NULL
         ), 0) - planned_qty
       WHERE plan_id = $1
       RETURNING *

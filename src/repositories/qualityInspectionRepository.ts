@@ -138,8 +138,8 @@ export class QualityInspectionRepository {
       FROM quality_inspection qi
       LEFT JOIN production_batch pb ON qi.batch_id = pb.batch_id
       LEFT JOIN product p ON pb.product_id = p.product_id
-      LEFT JOIN "user" u1 ON qi.inspected_by = u1.user_id
-      LEFT JOIN "user" u2 ON qi.created_by = u2.user_id
+      LEFT JOIN "user" u1 ON qi.inspected_by::TEXT = u1.user_id::TEXT
+      LEFT JOIN "user" u2 ON qi.created_by::TEXT = u2.user_id::TEXT
       WHERE qi.quality_inspection_id = $1
     `;
     
@@ -166,8 +166,8 @@ export class QualityInspectionRepository {
       FROM quality_inspection qi
       LEFT JOIN production_batch pb ON qi.batch_id = pb.batch_id
       LEFT JOIN product p ON pb.product_id = p.product_id
-      LEFT JOIN "user" u1 ON qi.inspected_by = u1.user_id
-      LEFT JOIN "user" u2 ON qi.created_by = u2.user_id
+      LEFT JOIN "user" u1 ON qi.inspected_by::TEXT = u1.user_id::TEXT
+      LEFT JOIN "user" u2 ON qi.created_by::TEXT = u2.user_id::TEXT
       WHERE qi.batch_id = $1
       ORDER BY qi.inspection_no DESC
     `;
@@ -245,8 +245,8 @@ export class QualityInspectionRepository {
       FROM quality_inspection qi
       LEFT JOIN production_batch pb ON qi.batch_id = pb.batch_id
       LEFT JOIN product p ON pb.product_id = p.product_id
-      LEFT JOIN "user" u1 ON qi.inspected_by = u1.user_id
-      LEFT JOIN "user" u2 ON qi.created_by = u2.user_id
+      LEFT JOIN "user" u1 ON qi.inspected_by::TEXT = u1.user_id::TEXT
+      LEFT JOIN "user" u2 ON qi.created_by::TEXT = u2.user_id::TEXT
       ${whereClause}
       ORDER BY qi.${sortBy} ${sortOrder.toUpperCase()}
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}

@@ -208,6 +208,26 @@ export class QualityInspectionController {
       });
     }
   }
+
+  async sendReworkRequest(req: AuthRequest, res: Response) {
+    try {
+      const inspectionId = parseInt(req.params.id as string);
+
+      const result = await qualityInspectionService.sendReworkRequest(inspectionId);
+
+      res.status(200).json({
+        success: true,
+        message: 'Rework request sent successfully',
+        data: result
+      });
+    } catch (error: any) {
+      console.error('Error sending rework request:', error);
+      res.status(400).json({
+        success: false,
+        message: error.message || 'Failed to send rework request'
+      });
+    }
+  }
 }
 
 export default new QualityInspectionController();

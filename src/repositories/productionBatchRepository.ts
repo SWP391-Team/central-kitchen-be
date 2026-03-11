@@ -124,7 +124,7 @@ export class ProductionBatchRepository {
     const query = `
       SELECT COALESCE(SUM(produced_qty), 0) as total
       FROM production_batch
-      WHERE plan_id = $1 AND status = 'produced' AND produced_qty IS NOT NULL
+      WHERE plan_id = $1 AND status != 'cancelled' AND produced_qty IS NOT NULL
     `;
     
     const result = await pool.query(query, [planId]);
