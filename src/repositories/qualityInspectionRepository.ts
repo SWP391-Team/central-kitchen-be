@@ -82,7 +82,8 @@ export class QualityInspectionRepository {
   async finishInspection(
     inspectionId: number,
     data: QualityInspectionFinishDto,
-    inspectedBy: number
+    inspectedBy: number,
+    batchStatusAtInspection: string
   ): Promise<QualityInspection | null> {
     const status = data.inspection_result === 'Pass' ? 'Passed' : 'Failed';
     
@@ -96,8 +97,9 @@ export class QualityInspectionRepository {
         note = $5,
         status = $6,
         inspected_by = $7,
-        inspected_at = CURRENT_TIMESTAMP
-      WHERE quality_inspection_id = $8
+        inspected_at = CURRENT_TIMESTAMP,
+        batch_status_at_inspection = $8
+      WHERE quality_inspection_id = $9
       RETURNING *
     `;
     
@@ -109,6 +111,7 @@ export class QualityInspectionRepository {
       data.note || null,
       status,
       inspectedBy,
+      batchStatusAtInspection,
       inspectionId
     ];
     

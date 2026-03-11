@@ -102,13 +102,14 @@ export class QualityInspectionService {
     try {
       await client.query('BEGIN');
 
+      const newBatchStatus = data.inspection_result === 'Pass' ? 'qc_passed' : 'qc_failed';
+
       const updatedInspection = await qualityInspectionRepository.finishInspection(
         inspectionId,
         data,
-        inspectedBy
+        inspectedBy,
+        newBatchStatus
       );
-
-      const newBatchStatus = data.inspection_result === 'Pass' ? 'qc_passed' : 'qc_failed';
 
       await client.query(
         `UPDATE production_batch SET status = $1 WHERE batch_id = $2`,
