@@ -138,6 +138,27 @@ export class ReworkRecordController {
       });
     }
   }
+
+  async undoFinishRework(req: Request, res: Response) {
+    try {
+      const reworkId = parseInt(req.params.id as string);
+      const userId = (req as any).user.user_id;
+
+      const result = await reworkRecordService.undoFinishRework(reworkId, userId);
+
+      res.status(200).json({
+        success: true,
+        message: `Rework undone successfully. New rework ${result.newRework.rework_code} created.`,
+        data: result
+      });
+    } catch (error: any) {
+      console.error('Error undoing rework:', error);
+      res.status(400).json({
+        success: false,
+        message: error.message || 'Failed to undo rework'
+      });
+    }
+  }
 }
 
 export default new ReworkRecordController();

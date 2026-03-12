@@ -74,7 +74,8 @@ export class ReworkRecordRepository {
     reworkId: number,
     data: ReworkRecordFinishDto,
     reworkBy: number,
-    batchStatusAfterRework: string
+    batchStatusAfterRework: string,
+    reworkStatus: 'Reworked' | 'Rework Failed'
   ): Promise<ReworkRecord | null> {
     const query = `
       UPDATE rework_record
@@ -82,11 +83,11 @@ export class ReworkRecordRepository {
         reworkable_qty = $1,
         non_reworkable_qty = $2,
         note = $3,
-        status = 'Reworked',
-        rework_by = $4,
+        status = $4,
+        rework_by = $5,
         rework_date = CURRENT_TIMESTAMP,
-        batch_status_after_rework = $6
-      WHERE rework_id = $5
+        batch_status_after_rework = $7
+      WHERE rework_id = $6
       RETURNING *
     `;
     
@@ -94,6 +95,7 @@ export class ReworkRecordRepository {
       data.reworkable_qty,
       data.non_reworkable_qty,
       data.note || null,
+      reworkStatus,
       reworkBy,
       reworkId,
       batchStatusAfterRework
@@ -224,6 +226,56 @@ export class ReworkRecordRepository {
     
     const result = await pool.query(query, [batchId, beforeDate]);
     return result.rows;
+  }
+
+  async hasAnyRework(batchId: number): Promise<boolean> {
+    const query = `
+        SELECT COUNT(*) as count
+      FROM rework_record
+      WHERE batch_id = $1
+    `;
+    
+    const result = await pool.query(query, [batchId]);
+    return parseInt(result.rows[0].count) > 0;
+  }
+
+  async markAsIncorrectData(reworkId: number): Promise<void> {
+    const query = `
+      UPDATE rework_record
+      SET status = 'Incorrect Data'
+      WHERE rework_id = $1
+    `;
+    
+    await pool.query(query, [reworkId]);
+  }
+
+  async createReworkFromOld(
+    oldRework: ReworkRecordWithDetails,
+    createdBy: number
+  ): Promise<ReworkRecord> {
+    const reworkCode = await this.getNextReworkCode();
+    const reworkNo = oldRework.rework_no + 1;
+    
+    const query = `
+      INSERT INTO rework_record (
+        rework_code, rework_no, batch_id, quality_inspection_id,
+        rework_qty, status, created_by, created_at
+      )
+      VALUES ($1, $2, $3, $4, $5, 'Reworking', $6, CURRENT_TIMESTAMP)
+      RETURNING *
+    `;
+    
+    const values = [
+      reworkCode,
+      reworkNo,
+      oldRework.batch_id,
+      oldRework.quality_inspection_id,
+      oldRework.rework_qty,
+      createdBy
+    ];
+    
+    const result = await pool.query(query, values);
+    return result.rows[0];
   }
 }
 

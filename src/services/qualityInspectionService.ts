@@ -168,6 +168,7 @@ export class QualityInspectionService {
               SELECT COALESCE(SUM(non_reworkable_qty), 0) as total_non_reworkable
               FROM rework_record
               WHERE batch_id = $1
+                AND status != 'Incorrect Data'
             `;
             const nonReworkableResult = await client.query(nonReworkableQuery, [inspection.batch_id]);
             const totalNonReworkable = parseInt(nonReworkableResult.rows[0].total_non_reworkable);
@@ -339,6 +340,7 @@ export class QualityInspectionService {
           SELECT COALESCE(SUM(non_reworkable_qty), 0) as total_non_reworkable
           FROM rework_record
           WHERE batch_id = $1
+            AND status != 'Incorrect Data'
         `;
         const nonReworkableResult = await client.query(nonReworkableQuery, [batchId]);
         const totalNonReworkable = parseInt(nonReworkableResult.rows[0].total_non_reworkable);
@@ -443,6 +445,94 @@ export class QualityInspectionService {
 
       const updatedBatch = await productionBatchRepository.findById(inspection.batch_id);
       return updatedBatch!;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async undoInspection(
+    inspectionId: number,
+    userId: number
+  ): Promise<{
+    oldInspection: QualityInspectionWithDetails;
+    newInspection: QualityInspectionWithDetails;
+    batch: ProductionBatch;
+  }> {
+    const inspection = await qualityInspectionRepository.findById(inspectionId);
+    if (!inspection) {
+      throw new Error('Inspection not found');
+    }
+
+    // Chỉ cho phép undo inspection Passed hoặc Failed
+    if (inspection.status !== 'Failed' && inspection.status !== 'Passed') {
+      throw new Error('Can only undo Passed or Failed inspections');
+    }
+
+    const batch = await productionBatchRepository.findById(inspection.batch_id);
+    if (!batch) {
+      throw new Error('Batch not found');
+    }
+
+    // Kiểm tra inspection phải là inspection mới nhất
+    const isMaxInspection = await qualityInspectionRepository.isMaxInspectionNo(
+      inspection.batch_id,
+      inspection.inspection_no
+    );
+    if (!isMaxInspection) {
+      throw new Error('Can only undo the latest inspection');
+    }
+
+    // Kiểm tra batch status phải là qc_failed, qc_passed, hoặc rework_required
+    const allowedStatuses = ['qc_failed', 'qc_passed', 'rework_required'];
+    if (!allowedStatuses.includes(batch.status)) {
+      throw new Error(
+        `Cannot undo inspection when batch status is ${batch.status}. ` + 
+        'Allowed statuses: qc_failed, qc_passed, rework_required'
+      );
+    }
+
+    // QUAN TRỌNG: Kiểm tra không có rework record nào
+    const hasRework = await reworkRecordRepository.hasAnyRework(inspection.batch_id);
+    if (hasRework) {
+      throw new Error(
+        'Cannot undo inspection after rework has started. ' +
+        'Please complete the rework process and perform a new inspection.'
+      );
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Mark inspection cũ là Incorrect Data
+      await qualityInspectionRepository.markAsIncorrectData(inspectionId);
+
+      // Tạo inspection mới với inspection_no + 1
+      const newInspectionRecord = await qualityInspectionRepository.createInspectionFromOld(
+        inspection,
+        userId
+      );
+
+      // Update batch status về under_qc
+      await client.query(
+        `UPDATE production_batch SET status = 'under_qc' WHERE batch_id = $1`,
+        [inspection.batch_id]
+      );
+
+      await client.query('COMMIT');
+
+      const oldInspection = await qualityInspectionRepository.findById(inspectionId);
+      const newInspection = await qualityInspectionRepository.findById(newInspectionRecord.quality_inspection_id);
+      const updatedBatch = await productionBatchRepository.findById(inspection.batch_id);
+
+      return {
+        oldInspection: oldInspection!,
+        newInspection: newInspection!,
+        batch: updatedBatch!
+      };
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;

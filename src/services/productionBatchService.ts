@@ -1,5 +1,6 @@
 import productionBatchRepository from '../repositories/productionBatchRepository';
 import productionPlanRepository from '../repositories/productionPlanRepository';
+import qualityInspectionRepository from '../repositories/qualityInspectionRepository';
 import { ProductRepository } from '../repositories/productRepository';
 import { ProductionBatchCreateDto, ProductionBatchFinishDto } from '../models/ProductionBatch';
 
@@ -144,6 +145,34 @@ export class ProductionBatchService {
 
     if (!updatedBatch) {
       throw new Error('Failed to send batch to QC');
+    }
+
+    return updatedBatch;
+  }
+
+  async undoSendToQC(batchId: number): Promise<any> {
+    const batch = await productionBatchRepository.findById(batchId);
+    if (!batch) {
+      throw new Error('Batch not found');
+    }
+
+    if (batch.status !== 'waiting_qc') {
+      throw new Error('Can only undo batches with status "waiting_qc"');
+    }
+
+    // Kiểm tra không có inspection record nào
+    const inspections = await qualityInspectionRepository.findByBatchId(batchId);
+    if (inspections.length > 0) {
+      throw new Error(
+        'Cannot undo send to QC after inspection has started. ' +
+        'Please complete or undo the inspection first.'
+      );
+    }
+
+    const updatedBatch = await productionBatchRepository.updateStatus(batchId, 'produced');
+
+    if (!updatedBatch) {
+      throw new Error('Failed to undo send to QC');
     }
 
     return updatedBatch;

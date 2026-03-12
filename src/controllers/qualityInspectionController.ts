@@ -228,6 +228,29 @@ export class QualityInspectionController {
       });
     }
   }
+
+  async undoInspection(req: AuthRequest, res: Response) {
+    try {
+      const inspectionId = parseInt(req.params.id as string);
+
+      const result = await qualityInspectionService.undoInspection(
+        inspectionId,
+        req.user!.user_id
+      );
+
+      res.status(200).json({
+        success: true,
+        message: 'Inspection undone successfully. New inspection created.',
+        data: result
+      });
+    } catch (error: any) {
+      console.error('Error undoing inspection:', error);
+      res.status(400).json({
+        success: false,
+        message: error.message || 'Failed to undo inspection'
+      });
+    }
+  }
 }
 
 export default new QualityInspectionController();

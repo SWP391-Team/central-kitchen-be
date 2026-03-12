@@ -244,6 +244,42 @@ export class ProductionBatchController {
     }
   };
 
+  undoSendToQC = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const user = req.user;
+      if (!user) {
+        res.status(401).json({
+          success: false,
+          message: 'Unauthorized',
+        });
+        return;
+      }
+
+      const batchId = parseInt(req.params.id as string);
+      if (isNaN(batchId)) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid batch ID',
+        });
+        return;
+      }
+
+      const result = await productionBatchService.undoSendToQC(batchId);
+
+      res.json({
+        success: true,
+        data: result,
+        message: 'Undo send to QC successfully. Batch status reverted to Produced.',
+      });
+    } catch (error: any) {
+      console.error('Undo send to QC error:', error);
+      res.status(400).json({
+        success: false,
+        message: error.message || 'Failed to undo send to QC',
+      });
+    }
+  };
+
   getAllBatches = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const user = req.user;

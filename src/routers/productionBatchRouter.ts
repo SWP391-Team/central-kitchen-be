@@ -11,6 +11,7 @@ router.post('/', requireRole(1, 2), productionBatchController.createBatch);
 router.put('/:id/finish', requireRole(1, 2), productionBatchController.finishProduction);
 router.put('/:id/cancel', requireRole(1, 2), productionBatchController.cancelBatch);
 router.put('/:id/send-to-qc', requireRole(1, 2), productionBatchController.sendToQC);
+router.put('/:id/undo-send-to-qc', requireRole(1, 2), productionBatchController.undoSendToQC);
 router.get('/all', requireRole(1, 2), productionBatchController.getAllBatches);
 router.get('/plan/:planId', requireRole(1, 2), productionBatchController.getBatchesByPlanId);
 router.get('/:id', requireRole(1, 2), productionBatchController.getBatchById);

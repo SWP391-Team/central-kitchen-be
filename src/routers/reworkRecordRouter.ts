@@ -9,6 +9,7 @@ router.use(jwtMiddleware);
 
 router.post('/start', requireRole(1, 2), reworkRecordController.startRework);
 router.put('/:id/finish', requireRole(1, 2), reworkRecordController.finishRework);
+router.put('/:id/undo', requireRole(1, 2), reworkRecordController.undoFinishRework);
 router.put('/batch/:batchId/send-to-qc', requireRole(1, 2), reworkRecordController.sendToQC);
 router.get('/', requireRole(1, 2), reworkRecordController.getAllReworkRecords);
 router.get('/:id', requireRole(1, 2), reworkRecordController.getReworkById);

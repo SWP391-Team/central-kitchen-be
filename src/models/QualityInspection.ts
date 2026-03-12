@@ -7,7 +7,7 @@ export interface QualityInspection {
   inspected_qty: number | null;
   passed_qty: number | null;
   failed_qty: number | null;
-  status: 'Inspecting' | 'Passed' | 'Failed';
+  status: 'Inspecting' | 'Passed' | 'Failed' | 'Incorrect Data';
   batch_status_at_inspection: string | null;
   note: string | null;
   inspected_by: number | null;

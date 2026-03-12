@@ -7,7 +7,7 @@ export interface ReworkRecord {
   rework_qty: number;
   reworkable_qty: number | null;
   non_reworkable_qty: number | null;
-  status: 'Reworking' | 'Reworked';
+  status: 'Reworking' | 'Reworked' | 'Rework Failed' | 'Incorrect Data';
   note: string | null;
   rework_by: number | null;
   rework_date: string | null;

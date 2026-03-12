@@ -265,6 +265,37 @@ export class QualityInspectionRepository {
     const maxNo = await this.getMaxInspectionNo(batchId);
     return inspectionNo === maxNo;
   }
+
+  async markAsIncorrectData(inspectionId: number): Promise<void> {
+    const query = `
+      UPDATE quality_inspection
+      SET status = 'Incorrect Data'
+      WHERE quality_inspection_id = $1
+    `;
+    
+    await pool.query(query, [inspectionId]);
+  }
+
+  async createInspectionFromOld(
+    oldInspection: QualityInspection,
+    createdBy: number
+  ): Promise<QualityInspection> {
+    const qiCode = await this.getNextQualityInspectionCode();
+    const inspectionNo = oldInspection.inspection_no + 1;
+    
+    const query = `
+      INSERT INTO quality_inspection (
+        batch_id, quality_inspection_code, inspection_no,
+        status, created_by, created_at
+      )
+      VALUES ($1, $2, $3, 'Inspecting', $4, CURRENT_TIMESTAMP)
+      RETURNING *
+    `;
+    
+    const values = [oldInspection.batch_id, qiCode, inspectionNo, createdBy];
+    const result = await pool.query(query, values);
+    return result.rows[0];
+  }
 }
 
 export default new QualityInspectionRepository();
