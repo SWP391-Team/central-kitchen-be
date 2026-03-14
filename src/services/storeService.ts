@@ -8,7 +8,7 @@ export class StoreService {
     this.storeRepository = new StoreRepository();
   }
 
-  async getAllStores(params?: { search?: string; is_active?: boolean }): Promise<StoreResponse[]> {
+  async getAllStores(params?: { search?: string; is_active?: boolean; location_type?: string }): Promise<StoreResponse[]> {
     return await this.storeRepository.findAll(params);
   }
 
@@ -21,46 +21,50 @@ export class StoreService {
   }
 
   async createStore(storeData: StoreCreateDto): Promise<StoreResponse> {
-    const storeCodePattern = /^ST-[A-Z0-9]{3}-[A-Z0-9]{4}$/;
-    if (!storeData.store_code || !storeCodePattern.test(storeData.store_code.toUpperCase())) {
-      throw new Error('Invalid store_code format. Expected format: ST-XXX-XXXX');
+    const locationCodePattern = /^[A-Z][A-Z0-9_-]{2,31}$/;
+    if (!storeData.location_code || !locationCodePattern.test(storeData.location_code.toUpperCase())) {
+      throw new Error('Invalid location_code format. Expected 3-32 chars: A-Z, 0-9, _, -');
     }
 
-    storeData.store_code = storeData.store_code.toUpperCase();
+    if (!storeData.location_type) {
+      throw new Error('location_type is required');
+    }
 
-    const existingStoreCode = await this.storeRepository.findByStoreCode(storeData.store_code);
+    storeData.location_code = storeData.location_code.toUpperCase();
+
+    const existingStoreCode = await this.storeRepository.findByStoreCode(storeData.location_code);
     if (existingStoreCode) {
-      throw new Error('Store code already exists');
+      throw new Error('Location code already exists');
     }
 
-    const existingStore = await this.storeRepository.findByName(storeData.store_name);
+    const existingStore = await this.storeRepository.findByName(storeData.location_name);
     if (existingStore) {
-      throw new Error('Store name already exists');
+      throw new Error('Location name already exists');
     }
 
     return await this.storeRepository.create(storeData);
   }
 
   async updateStore(storeId: number, storeData: StoreUpdateDto): Promise<StoreResponse> {
-    if ('store_code' in storeData) {
-      throw new Error('Cannot modify store_code after creation');
+    if ('location_code' in (storeData as any)) {
+      throw new Error('Cannot modify location_code after creation');
     }
 
     const store = await this.storeRepository.findById(storeId);
     if (!store) {
-      throw new Error('Store not found');
+      throw new Error('Location not found');
     }
 
-    if (storeData.store_name && storeData.store_name !== store.store_name) {
-      const existingStore = await this.storeRepository.findByName(storeData.store_name);
+    if (storeData.location_name && storeData.location_name !== store.location_name) {
+      const existingStore = await this.storeRepository.findByName(storeData.location_name);
       if (existingStore) {
-        throw new Error('Store name already exists');
+        throw new Error('Location name already exists');
       }
     }
 
     const updatedStore = await this.storeRepository.update(storeId, storeData);
     if (!updatedStore) {
-      throw new Error('Failed to update store');
+      throw new Error('Failed to update location');
     }
     return updatedStore;
   }
@@ -68,12 +72,12 @@ export class StoreService {
   async toggleStoreStatus(storeId: number, is_active: boolean): Promise<StoreResponse> {
     const store = await this.storeRepository.findById(storeId);
     if (!store) {
-      throw new Error('Store not found');
+      throw new Error('Location not found');
     }
 
     const updatedStore = await this.storeRepository.updateStatus(storeId, is_active);
     if (!updatedStore) {
-      throw new Error('Failed to update store status');
+      throw new Error('Failed to update location status');
     }
     return updatedStore;
   }
@@ -81,12 +85,12 @@ export class StoreService {
   async deleteStore(storeId: number): Promise<void> {
     const store = await this.storeRepository.findById(storeId);
     if (!store) {
-      throw new Error('Store not found');
+      throw new Error('Location not found');
     }
 
     const hasUsers = await this.storeRepository.hasUsers(storeId);
     if (hasUsers) {
-      throw new Error('Cannot delete store with assigned users. Please reassign or remove users first.');
+      throw new Error('Cannot delete location with assigned users. Please reassign or remove users first.');
     }
 
     await this.storeRepository.delete(storeId);

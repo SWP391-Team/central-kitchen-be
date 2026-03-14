@@ -37,7 +37,7 @@ export class AuthController {
           success: false,
           message: 'User account is inactive',
         });
-      } else if (error instanceof Error && error.message.includes('store is inactive')) {
+      } else if (error instanceof Error && error.message.toLowerCase().includes('location') && error.message.toLowerCase().includes('inactive')) {
         res.status(403).json({
           success: false,
           message: error.message,

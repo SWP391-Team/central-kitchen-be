@@ -11,11 +11,12 @@ export class StoreController {
 
   getAllStores = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { search, is_active } = req.query;
+      const { search, is_active, location_type } = req.query;
       
       const params: any = {};
       if (search) params.search = search as string;
       if (is_active !== undefined) params.is_active = is_active === 'true';
+      if (location_type) params.location_type = location_type as string;
 
       const stores = await this.storeService.getAllStores(params);
       res.json({
@@ -38,7 +39,7 @@ export class StoreController {
       if (isNaN(storeId)) {
         res.status(400).json({
           success: false,
-          message: 'Invalid store ID',
+          message: 'Invalid location ID',
         });
         return;
       }
@@ -51,7 +52,7 @@ export class StoreController {
       });
     } catch (error: any) {
       console.error('Get store by ID error:', error);
-      if (error.message === 'Store not found') {
+      if (error.message === 'Location not found') {
         res.status(404).json({
           success: false,
           message: error.message,
@@ -69,10 +70,10 @@ export class StoreController {
     try {
       const storeData: StoreCreateDto = req.body;
 
-      if (!storeData.store_code || !storeData.store_name || !storeData.store_address) {
+      if (!storeData.location_code || !storeData.location_name || !storeData.location_address || !storeData.location_type) {
         res.status(400).json({
           success: false,
-          message: 'Store code, name and address are required',
+          message: 'location_code, location_name, location_address and location_type are required',
         });
         return;
       }
@@ -82,21 +83,21 @@ export class StoreController {
       res.status(201).json({
         success: true,
         data: store,
-        message: 'Store created successfully',
+        message: 'Location created successfully',
       });
     } catch (error: any) {
       console.error('Create store error:', error);
-      if (error.message === 'Store name already exists') {
+      if (error.message === 'Location name already exists') {
         res.status(409).json({
           success: false,
           message: error.message,
         });
-      } else if (error.message === 'Store code already exists') {
+      } else if (error.message === 'Location code already exists') {
         res.status(409).json({
           success: false,
           message: error.message,
         });
-      } else if (error.message.includes('Invalid store_code format')) {
+      } else if (error.message.includes('Invalid location_code format')) {
         res.status(400).json({
           success: false,
           message: error.message,
@@ -117,7 +118,7 @@ export class StoreController {
       if (isNaN(storeId)) {
         res.status(400).json({
           success: false,
-          message: 'Invalid store ID',
+          message: 'Invalid location ID',
         });
         return;
       }
@@ -137,21 +138,21 @@ export class StoreController {
       res.json({
         success: true,
         data: store,
-        message: 'Store updated successfully',
+        message: 'Location updated successfully',
       });
     } catch (error: any) {
       console.error('Update store error:', error);
-      if (error.message === 'Store not found') {
+      if (error.message === 'Location not found') {
         res.status(404).json({
           success: false,
           message: error.message,
         });
-      } else if (error.message === 'Store name already exists') {
+      } else if (error.message === 'Location name already exists') {
         res.status(409).json({
           success: false,
           message: error.message,
         });
-      } else if (error.message === 'Cannot modify store_code after creation') {
+      } else if (error.message === 'Cannot modify location_code after creation') {
         res.status(403).json({
           success: false,
           message: error.message,
@@ -173,7 +174,7 @@ export class StoreController {
       if (isNaN(storeId)) {
         res.status(400).json({
           success: false,
-          message: 'Invalid store ID',
+          message: 'Invalid location ID',
         });
         return;
       }
@@ -191,11 +192,11 @@ export class StoreController {
       res.json({
         success: true,
         data: store,
-        message: `Store ${is_active ? 'activated' : 'deactivated'} successfully`,
+        message: `Location ${is_active ? 'activated' : 'deactivated'} successfully`,
       });
     } catch (error: any) {
       console.error('Toggle store status error:', error);
-      if (error.message === 'Store not found') {
+      if (error.message === 'Location not found') {
         res.status(404).json({
           success: false,
           message: error.message,
@@ -216,7 +217,7 @@ export class StoreController {
       if (isNaN(storeId)) {
         res.status(400).json({
           success: false,
-          message: 'Invalid store ID',
+          message: 'Invalid location ID',
         });
         return;
       }
@@ -225,16 +226,16 @@ export class StoreController {
 
       res.json({
         success: true,
-        message: 'Store deleted successfully',
+        message: 'Location deleted successfully',
       });
     } catch (error: any) {
       console.error('Delete store error:', error);
-      if (error.message === 'Store not found') {
+      if (error.message === 'Location not found') {
         res.status(404).json({
           success: false,
           message: error.message,
         });
-      } else if (error.message.includes('Cannot delete store with assigned users')) {
+      } else if (error.message.includes('Cannot delete location with assigned users')) {
         res.status(400).json({
           success: false,
           message: error.message,

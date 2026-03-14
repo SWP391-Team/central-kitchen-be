@@ -8,7 +8,8 @@ declare global {
         user_id: number;
         username: string;
         role_id: number;
-        store_id: number | null;
+        location_id: number | null;
+        location_ids: number[];
       };
     }
   }
@@ -30,12 +31,18 @@ export const jwtMiddleware = (req: Request, res: Response, next: NextFunction): 
 
     const token = authHeader.substring(7); 
     const decoded = authService.verifyToken(token);
+    const decodedLocationIds = Array.isArray(decoded.location_ids)
+      ? decoded.location_ids.filter((id: unknown) => typeof id === 'number')
+      : decoded.location_id !== null && decoded.location_id !== undefined
+        ? [decoded.location_id]
+        : [];
 
     req.user = {
       user_id: decoded.user_id,
       username: decoded.username,
       role_id: decoded.role_id,
-      store_id: decoded.store_id,
+      location_id: decodedLocationIds[0] ?? null,
+      location_ids: decodedLocationIds,
     };
 
     next();

@@ -6,7 +6,8 @@ interface AuthRequest extends Request {
     user_id: number;
     username: string;
     role_id: number;
-    store_id: number | null;
+    location_id: number | null;
+    location_ids: number[];
   };
 }
 

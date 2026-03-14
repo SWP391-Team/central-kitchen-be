@@ -15,7 +15,8 @@ export interface AuthResponse {
     user_code: string;
     username: string;
     role_id: number;
-    store_id: number | null;
+    location_id: number | null;
+    location_ids: number[];
   };
 }
 
@@ -42,10 +43,13 @@ export class AuthService {
       throw new Error('User account is inactive');
     }
 
-    if (user.store_id !== null) {
-      const store = await this.storeRepository.findById(user.store_id);
-      if (!store || !store.is_active) {
-        throw new Error('Your store is inactive. Please contact administrator.');
+    const locationIds = (user.location_ids && user.location_ids.length > 0)
+      ? user.location_ids
+      : (user.location_id !== null ? [user.location_id] : []);
+    for (const locationId of locationIds) {
+      const location = await this.storeRepository.findById(locationId);
+      if (!location || !location.is_active) {
+        throw new Error('One of your assigned locations is inactive. Please contact administrator.');
       }
     }
 
@@ -59,7 +63,8 @@ export class AuthService {
         user_id: user.user_id,
         username: user.username,
         role_id: user.role_id,
-        store_id: user.store_id,
+        location_id: user.location_id,
+        location_ids: locationIds,
       },
       this.jwtSecret,
       { expiresIn: '24h' }
@@ -72,7 +77,8 @@ export class AuthService {
         user_code: user.user_code,
         username: user.username,
         role_id: user.role_id,
-        store_id: user.store_id,
+        location_id: user.location_id,
+        location_ids: locationIds,
       },
     };
   }

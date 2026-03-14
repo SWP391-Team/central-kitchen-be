@@ -22,7 +22,7 @@ export const requireRole = (...allowedRoles: number[]) => {
   };
 };
 
-export const requireStore = (storeId: number) => {
+export const requireLocation = (...allowedLocations: number[]) => {
   return (req: Request, res: Response, next: NextFunction): void => {
     if (!req.user) {
       res.status(401).json({
@@ -32,10 +32,13 @@ export const requireStore = (storeId: number) => {
       return;
     }
 
-    if (req.user.store_id !== storeId) {
+    const userLocationIds = req.user.location_ids || [];
+    const hasAccess = allowedLocations.some((locationId) => userLocationIds.includes(locationId));
+
+    if (!hasAccess) {
       res.status(403).json({
         success: false,
-        message: 'Access denied. You do not have access to this store.',
+        message: 'Access denied. You do not have access to this location.',
       });
       return;
     }
@@ -43,3 +46,5 @@ export const requireStore = (storeId: number) => {
     next();
   };
 };
+
+export const requireStore = requireLocation;

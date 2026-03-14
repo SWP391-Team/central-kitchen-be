@@ -5,6 +5,14 @@ import { UserCreateDto, UserUpdateDto, UserResponse } from '../models/User';
 export class UserService {
   private userRepository: UserRepository;
 
+  private normalizeLocationIds(locationIds?: number[]): number[] {
+    if (!locationIds) {
+      return [];
+    }
+
+    return Array.from(new Set(locationIds)).filter((id) => Number.isInteger(id) && id > 0);
+  }
+
   constructor() {
     this.userRepository = new UserRepository();
   }
@@ -37,11 +45,17 @@ export class UserService {
       throw new Error('Username already exists');
     }
 
+    const normalizedLocationIds = this.normalizeLocationIds(
+      userData.location_ids ?? (userData.location_id !== undefined && userData.location_id !== null ? [userData.location_id] : [])
+    );
+
     const hashedPassword = await bcrypt.hash(userData.password, 10);
 
     const user = await this.userRepository.create({
       ...userData,
       password: hashedPassword,
+      location_ids: normalizedLocationIds,
+      location_id: normalizedLocationIds[0] ?? null,
     });
 
     return this.toUserResponse(user);
@@ -63,6 +77,12 @@ export class UserService {
       userData.password = await bcrypt.hash(userData.password, 10);
     }
 
+    if (userData.location_ids !== undefined) {
+      const normalizedLocationIds = this.normalizeLocationIds(userData.location_ids);
+      userData.location_ids = normalizedLocationIds;
+      userData.location_id = normalizedLocationIds[0] ?? null;
+    }
+
     const user = await this.userRepository.update(userId, userData);
     return user ? this.toUserResponse(user) : null;
   }
@@ -77,7 +97,8 @@ export class UserService {
       user_code: user.user_code,
       username: user.username,
       role_id: user.role_id,
-      store_id: user.store_id,
+      location_id: user.location_id,
+      location_ids: user.location_ids || [],
       is_active: user.is_active,
       created_at: user.created_at,
     };
