@@ -10,6 +10,9 @@ import productionPlanRouter from './routers/productionPlanRouter';
 import productionBatchRouter from './routers/productionBatchRouter';
 import qualityInspectionRouter from './routers/qualityInspectionRouter';
 import reworkRecordRouter from './routers/reworkRecordRouter';
+import batchTransferRouter from './routers/batchTransferRouter';
+import warehouseReceiveRouter from './routers/warehouseReceiveRouter';
+import inventoryRouter from './routers/inventoryRouter';
 
 dotenv.config();
 
@@ -27,6 +30,9 @@ app.use('/api/production-plans', productionPlanRouter);
 app.use('/api/production-batches', productionBatchRouter);
 app.use('/api/quality-inspections', qualityInspectionRouter);
 app.use('/api/rework-records', reworkRecordRouter);
+app.use('/api/batch-transfers', batchTransferRouter);
+app.use('/api/warehouse-receives', warehouseReceiveRouter);
+app.use('/api/inventory', inventoryRouter);
 
 app.get('/api/health', async (req, res) => {
   try {

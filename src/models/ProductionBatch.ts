@@ -6,7 +6,7 @@ export interface ProductionBatch {
   produced_qty: number | null;
   production_date: string | null;
   expired_date: string | null;
-  status: 'producing' | 'produced' | 'waiting_qc' | 'under_qc' | 'qc_passed' | 'qc_failed' | 'rejected' | 'cancelled' | 'rework_required' | 'reworking' | 'reworked' | 'rework_failed';
+  status: 'producing' | 'produced' | 'waiting_qc' | 'under_qc' | 'qc_passed' | 'qc_failed' | 'rejected' | 'cancelled' | 'rework_required' | 'reworking' | 'reworked' | 'rework_failed' | 'delivering' | 'delivered' | 'received';
   created_at: string;
   created_by: number;
   good_qty: number | null;

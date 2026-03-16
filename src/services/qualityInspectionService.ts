@@ -1,6 +1,7 @@
 import qualityInspectionRepository from '../repositories/qualityInspectionRepository';
 import productionBatchRepository from '../repositories/productionBatchRepository';
 import reworkRecordRepository from '../repositories/reworkRecordRepository';
+import inventoryRepository from '../repositories/inventoryRepository';
 import pool from '../config/database';
 import { 
   QualityInspectionCreateDto, 
@@ -195,6 +196,39 @@ export class QualityInspectionService {
              WHERE batch_id = $3`,
             [goodQty, defectQty, inspection.batch_id]
           );
+
+          if (goodQty > 0) {
+            const alreadyHasInventory =
+              await inventoryRepository.existsProductionTransaction(
+                inspection.batch_id,
+                client
+              );
+            if (!alreadyHasInventory) {
+              const ckProdRows = await client.query(
+                `SELECT location_id FROM location
+                 WHERE location_type = 'CK_PRODUCTION' AND is_active = true
+                 LIMIT 1`
+              );
+              if (ckProdRows.rows.length > 0) {
+                const ckProdLocationId = ckProdRows.rows[0].location_id;
+                await inventoryRepository.createTransactionWithClient(client, {
+                  location_id: ckProdLocationId,
+                  product_id: batch.product_id,
+                  batch_id: inspection.batch_id,
+                  reference_type: 'production_batch',
+                  reference_id: inspection.batch_id,
+                  qty: goodQty,
+                  transaction_type: 'IN',
+                });
+                await inventoryRepository.upsertBatchInventoryWithClient(client, {
+                  location_id: ckProdLocationId,
+                  product_id: batch.product_id,
+                  batch_id: inspection.batch_id,
+                  qty_change: goodQty,
+                });
+              }
+            }
+          }
         }
       }
 
@@ -466,7 +500,6 @@ export class QualityInspectionService {
       throw new Error('Inspection not found');
     }
 
-    // Chỉ cho phép undo inspection Passed hoặc Failed
     if (inspection.status !== 'Failed' && inspection.status !== 'Passed') {
       throw new Error('Can only undo Passed or Failed inspections');
     }
@@ -476,7 +509,6 @@ export class QualityInspectionService {
       throw new Error('Batch not found');
     }
 
-    // Kiểm tra inspection phải là inspection mới nhất
     const isMaxInspection = await qualityInspectionRepository.isMaxInspectionNo(
       inspection.batch_id,
       inspection.inspection_no
@@ -485,7 +517,6 @@ export class QualityInspectionService {
       throw new Error('Can only undo the latest inspection');
     }
 
-    // Kiểm tra batch status phải là qc_failed, qc_passed, hoặc rework_required
     const allowedStatuses = ['qc_failed', 'qc_passed', 'rework_required'];
     if (!allowedStatuses.includes(batch.status)) {
       throw new Error(
@@ -494,7 +525,6 @@ export class QualityInspectionService {
       );
     }
 
-    // QUAN TRỌNG: Kiểm tra không có rework record nào
     const hasRework = await reworkRecordRepository.hasAnyRework(inspection.batch_id);
     if (hasRework) {
       throw new Error(
@@ -507,16 +537,13 @@ export class QualityInspectionService {
     try {
       await client.query('BEGIN');
 
-      // Mark inspection cũ là Incorrect Data
       await qualityInspectionRepository.markAsIncorrectData(inspectionId);
 
-      // Tạo inspection mới với inspection_no + 1
       const newInspectionRecord = await qualityInspectionRepository.createInspectionFromOld(
         inspection,
         userId
       );
 
-      // Update batch status về under_qc
       await client.query(
         `UPDATE production_batch SET status = 'under_qc' WHERE batch_id = $1`,
         [inspection.batch_id]
