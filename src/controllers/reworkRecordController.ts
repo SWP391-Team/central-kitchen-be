@@ -60,8 +60,9 @@ export class ReworkRecordController {
   async sendToQC(req: Request, res: Response) {
     try {
       const batch_id = parseInt(req.params.batchId as string);
+      const changed_by = (req as any).user.user_id;
 
-      const result = await reworkRecordService.sendToQC(batch_id);
+      const result = await reworkRecordService.sendToQC(batch_id, changed_by);
 
       res.status(200).json({
         success: true,

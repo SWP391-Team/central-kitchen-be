@@ -1,16 +1,81 @@
 import pool from '../config/database';
 import warehouseReceiveRepository from '../repositories/warehouseReceiveRepository';
 import batchTransferRepository from '../repositories/batchTransferRepository';
+import productionBatchRepository from '../repositories/productionBatchRepository';
 import inventoryRepository from '../repositories/inventoryRepository';
 import { WarehouseReceiveWithDetails } from '../models/WarehouseReceive';
 
 export class WarehouseReceiveService {
+  private toId(value: unknown): number {
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      return 0;
+    }
+    return parsed;
+  }
+
+  private normalizeLocationIds(rawIds: unknown[]): number[] {
+    const ids = rawIds
+      .map((id) => {
+        if (typeof id === 'number') return id;
+        if (typeof id === 'string' && id.trim() !== '') {
+          const parsed = Number(id);
+          return Number.isFinite(parsed) ? parsed : NaN;
+        }
+        return NaN;
+      })
+      .filter((id) => Number.isInteger(id) && id > 0) as number[];
+
+    return Array.from(new Set(ids));
+  }
+
+  private async resolveUserLocationScope(
+    userId: number,
+    rawLocationIds?: unknown[]
+  ): Promise<number[]> {
+    const tokenScope = this.normalizeLocationIds(rawLocationIds || []);
+    if (tokenScope.length > 0) {
+      return tokenScope;
+    }
+
+    const result = await pool.query(
+      `SELECT
+         u.location_id,
+         COALESCE(
+           ARRAY_AGG(ul.location_id) FILTER (WHERE ul.location_id IS NOT NULL),
+           ARRAY[]::int[]
+         ) AS location_ids
+       FROM "user" u
+       LEFT JOIN user_location ul ON ul.user_id = u.user_id
+       WHERE u.user_id = $1
+       GROUP BY u.user_id, u.location_id`,
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return [];
+    }
+
+    const row = result.rows[0];
+    const ids = Array.isArray(row.location_ids)
+      ? this.normalizeLocationIds(row.location_ids)
+      : [];
+
+    if (ids.length > 0) {
+      return ids;
+    }
+
+    return this.normalizeLocationIds([row.location_id]);
+  }
+
   async createWarehouseReceive(data: {
     batch_transfer_id: number;
     received_qty: number;
     received_date: string;
     received_by: number;
     created_by: number;
+    user_role_id?: number;
+    user_location_ids?: number[];
   }): Promise<WarehouseReceiveWithDetails> {
     const client = await pool.connect();
     try {
@@ -21,6 +86,18 @@ export class WarehouseReceiveService {
         client
       );
       if (!transfer) throw new Error('Batch transfer not found');
+
+      if (data.user_role_id === 3) {
+        const allowedLocations = await this.resolveUserLocationScope(
+          data.received_by,
+          data.user_location_ids
+        );
+        const toLocationId = this.toId(transfer.to_location_id);
+        if (!allowedLocations.includes(toLocationId)) {
+          throw new Error('Store Staff can only receive transfers to assigned store locations');
+        }
+      }
+
       if (transfer.status !== 'Delivering') {
         throw new Error('Batch transfer is not in Delivering status');
       }
@@ -49,6 +126,18 @@ export class WarehouseReceiveService {
       const wareReceive = await warehouseReceiveRepository.createWithClient(
         client,
         {
+          is_over_delivery: !!(
+            transfer.supply_order_item_id &&
+            (
+              await client.query(
+                `SELECT so.status
+                 FROM supply_order_item soi
+                 INNER JOIN supply_order so ON so.supply_order_id = soi.supply_order_id
+                 WHERE soi.supply_order_item_id = $1`,
+                [transfer.supply_order_item_id]
+              )
+            ).rows[0]?.status === 'Closed'
+          ),
           batch_transfer_id: data.batch_transfer_id,
           batch_id: transfer.batch_id,
           location_id: transfer.to_location_id,
@@ -95,10 +184,11 @@ export class WarehouseReceiveService {
             client
           );
         if (total > 0 && total === receivedCount) {
-          await client.query(
-            `UPDATE production_batch SET status = 'received' WHERE batch_id = $1`,
-            [transfer.batch_id]
-          );
+          await productionBatchRepository.updateStatusWithHistory(transfer.batch_id, 'received', {
+            client,
+            changed_by: data.received_by,
+            note: 'All transfers for batch received',
+          });
         }
       }
 
@@ -120,14 +210,17 @@ export class WarehouseReceiveService {
     }
   }
 
-  async getAllWarehouseReceives(): Promise<WarehouseReceiveWithDetails[]> {
-    return warehouseReceiveRepository.findAll();
+  async getAllWarehouseReceives(
+    locationIds?: number[]
+  ): Promise<WarehouseReceiveWithDetails[]> {
+    return warehouseReceiveRepository.findAll(locationIds);
   }
 
   async getReceivesByTransferId(
-    transferId: number
+    transferId: number,
+    locationIds?: number[]
   ): Promise<WarehouseReceiveWithDetails[]> {
-    return warehouseReceiveRepository.findByBatchTransferId(transferId);
+    return warehouseReceiveRepository.findByBatchTransferId(transferId, locationIds);
   }
 }
 

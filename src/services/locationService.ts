@@ -20,7 +20,7 @@ export class LocationService {
     return location;
   }
 
-  async createLocation(locationData: LocationCreateDto): Promise<LocationResponse> {
+  async createLocation(locationData: LocationCreateDto, createdBy: number): Promise<LocationResponse> {
     const locationCodePattern = /^[A-Z][A-Z0-9_-]{2,31}$/;
     if (!locationData.location_code || !locationCodePattern.test(locationData.location_code.toUpperCase())) {
       throw new Error('Invalid location_code format. Expected 3-32 chars: A-Z, 0-9, _, -');
@@ -42,7 +42,10 @@ export class LocationService {
       throw new Error('Location name already exists');
     }
 
-    return await this.locationRepository.create(locationData);
+    return await this.locationRepository.create({
+      ...locationData,
+      created_by: createdBy,
+    });
   }
 
   async updateLocation(locationId: number, locationData: LocationUpdateDto): Promise<LocationResponse> {

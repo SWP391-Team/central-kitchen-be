@@ -27,7 +27,7 @@ export class UserService {
     return user ? this.toUserResponse(user) : null;
   }
 
-  async createUser(userData: UserCreateDto): Promise<UserResponse> {
+  async createUser(userData: UserCreateDto, createdBy: number): Promise<UserResponse> {
     const userCodePattern = /^USR-\d{4}$/;
     if (!userData.user_code || !userCodePattern.test(userData.user_code.toUpperCase())) {
       throw new Error('Invalid user_code format. Expected format: USR-XXXX');
@@ -56,6 +56,7 @@ export class UserService {
       password: hashedPassword,
       location_ids: normalizedLocationIds,
       location_id: normalizedLocationIds[0] ?? null,
+      created_by: createdBy,
     });
 
     return this.toUserResponse(user);
@@ -100,6 +101,7 @@ export class UserService {
       location_id: user.location_id,
       location_ids: user.location_ids || [],
       is_active: user.is_active,
+      created_by: user.created_by ?? null,
       created_at: user.created_at,
     };
   }

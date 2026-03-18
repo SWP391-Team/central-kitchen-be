@@ -114,7 +114,7 @@ export class UserRepository {
   }
 
   async create(userData: UserCreateDto): Promise<User> {
-    const { user_code, username, password, role_id, is_active = true } = userData;
+    const { user_code, username, password, role_id, is_active = true, created_by } = userData;
     const locationIds = this.normalizeLocationIds(
       userData.location_ids ?? (userData.location_id !== undefined && userData.location_id !== null ? [userData.location_id] : [])
     );
@@ -125,10 +125,10 @@ export class UserRepository {
       await client.query('BEGIN');
 
       const result = await client.query(
-        `INSERT INTO "user" (user_code, username, password, role_id, location_id, is_active)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO "user" (user_code, username, password, role_id, location_id, is_active, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
          RETURNING *`,
-        [user_code, username, password, role_id, primaryLocationId, is_active]
+        [user_code, username, password, role_id, primaryLocationId, is_active, created_by]
       );
 
       const createdUser = result.rows[0];

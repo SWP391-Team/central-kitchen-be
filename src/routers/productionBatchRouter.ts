@@ -13,6 +13,7 @@ router.put('/:id/cancel', requireRole(1, 2), productionBatchController.cancelBat
 router.put('/:id/send-to-qc', requireRole(1, 2), productionBatchController.sendToQC);
 router.put('/:id/undo-send-to-qc', requireRole(1, 2), productionBatchController.undoSendToQC);
 router.get('/all', requireRole(1, 2), productionBatchController.getAllBatches);
+router.get('/:id/status-history', requireRole(1, 2), productionBatchController.getBatchStatusHistory);
 router.get('/plan/:planId', requireRole(1, 2), productionBatchController.getBatchesByPlanId);
 router.get('/:id', requireRole(1, 2), productionBatchController.getBatchById);
 

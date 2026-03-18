@@ -23,6 +23,7 @@ export interface ProductionBatchFinishDto {
   produced_qty: number;
   production_date: string;
   expired_date: string;
+  changed_by?: number;
 }
 
 export interface ProductionBatchWithDetails extends ProductionBatch {
@@ -30,4 +31,15 @@ export interface ProductionBatchWithDetails extends ProductionBatch {
   product_name?: string;
   product_code?: string;
   created_by_username?: string;
+}
+
+export interface BatchStatusHistory {
+  batch_status_history_id: number;
+  batch_id: number;
+  old_status: string | null;
+  new_status: string;
+  changed_by: number | null;
+  changed_at: string;
+  note: string | null;
+  changed_by_username?: string;
 }

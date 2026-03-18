@@ -82,12 +82,18 @@ export class ProductRepository {
     const productCode = `PRD-${nextNumber.toString().padStart(4, '0')}`;
 
     const query = `
-      INSERT INTO product (product_code, product_name, unit, shelf_life_days)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO product (product_code, product_name, unit, shelf_life_days, created_by)
+      VALUES ($1, $2, $3, $4, $5)
       RETURNING *
     `;
     
-    const result = await pool.query(query, [productCode, normalizedName, normalizedUnit, productData.shelf_life_days]);
+    const result = await pool.query(query, [
+      productCode,
+      normalizedName,
+      normalizedUnit,
+      productData.shelf_life_days,
+      productData.created_by,
+    ]);
     return result.rows[0];
   }
 

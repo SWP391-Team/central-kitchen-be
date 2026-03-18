@@ -8,7 +8,13 @@ interface AuthRequest extends Request {
 export class WarehouseReceiveController {
   getAll = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const data = await warehouseReceiveService.getAllWarehouseReceives();
+      const user = req.user;
+      const locationIds: number[] | undefined =
+        user?.role_id === 3 ? user.location_ids : undefined;
+
+      const data = await warehouseReceiveService.getAllWarehouseReceives(
+        locationIds
+      );
       res.json({ success: true, data });
     } catch (error: any) {
       res.status(500).json({ success: false, message: error.message });
@@ -24,8 +30,15 @@ export class WarehouseReceiveController {
           .json({ success: false, message: 'Invalid transfer ID' });
         return;
       }
+      const user = req.user;
+      const locationIds: number[] | undefined =
+        user?.role_id === 3 ? user.location_ids : undefined;
+
       const data =
-        await warehouseReceiveService.getReceivesByTransferId(transferId);
+        await warehouseReceiveService.getReceivesByTransferId(
+          transferId,
+          locationIds
+        );
       res.json({ success: true, data });
     } catch (error: any) {
       res.status(500).json({ success: false, message: error.message });
@@ -61,6 +74,8 @@ export class WarehouseReceiveController {
         received_date,
         received_by: user.user_id,
         created_by: user.user_id,
+        user_role_id: user.role_id,
+        user_location_ids: user.location_ids,
       });
 
       res.status(201).json({

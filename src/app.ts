@@ -13,6 +13,9 @@ import reworkRecordRouter from './routers/reworkRecordRouter';
 import batchTransferRouter from './routers/batchTransferRouter';
 import warehouseReceiveRouter from './routers/warehouseReceiveRouter';
 import inventoryRouter from './routers/inventoryRouter';
+import supplyOrderRouter from './routers/supplyOrderRouter';
+import auditLogRouter from './routers/auditLogRouter';
+import { auditLogMiddleware } from './middlewares/auditLogMiddleware';
 
 dotenv.config();
 
@@ -20,6 +23,7 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use(auditLogMiddleware);
 
 app.use('/api/auth', authRouter);
 app.use('/api/users', userRouter);
@@ -32,6 +36,8 @@ app.use('/api/rework-records', reworkRecordRouter);
 app.use('/api/batch-transfers', batchTransferRouter);
 app.use('/api/warehouse-receives', warehouseReceiveRouter);
 app.use('/api/inventory', inventoryRouter);
+app.use('/api/supply-orders', supplyOrderRouter);
+app.use('/api/audit-logs', auditLogRouter);
 
 app.get('/api/health', async (req, res) => {
   try {

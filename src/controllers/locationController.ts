@@ -68,6 +68,14 @@ export class LocationController {
 
   createLocation = async (req: Request, res: Response): Promise<void> => {
     try {
+      if (!req.user) {
+        res.status(401).json({
+          success: false,
+          message: 'Unauthorized',
+        });
+        return;
+      }
+
       const locationData: LocationCreateDto = req.body;
 
       if (!locationData.location_code || !locationData.location_name || !locationData.location_address || !locationData.location_type) {
@@ -78,7 +86,7 @@ export class LocationController {
         return;
       }
 
-      const location = await this.locationService.createLocation(locationData);
+      const location = await this.locationService.createLocation(locationData, req.user.user_id);
 
       res.status(201).json({
         success: true,

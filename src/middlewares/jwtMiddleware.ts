@@ -17,6 +17,21 @@ declare global {
 
 const authService = new AuthService();
 
+const normalizeLocationIds = (rawIds: unknown[]): number[] => {
+  const ids = rawIds
+    .map((id) => {
+      if (typeof id === 'number') return id;
+      if (typeof id === 'string' && id.trim() !== '') {
+        const parsed = Number(id);
+        return Number.isFinite(parsed) ? parsed : NaN;
+      }
+      return NaN;
+    })
+    .filter((id) => Number.isInteger(id) && id > 0) as number[];
+
+  return Array.from(new Set(ids));
+};
+
 export const jwtMiddleware = (req: Request, res: Response, next: NextFunction): void => {
   try {
     const authHeader = req.headers.authorization;
@@ -32,9 +47,9 @@ export const jwtMiddleware = (req: Request, res: Response, next: NextFunction): 
     const token = authHeader.substring(7); 
     const decoded = authService.verifyToken(token);
     const decodedLocationIds = Array.isArray(decoded.location_ids)
-      ? decoded.location_ids.filter((id: unknown) => typeof id === 'number')
+      ? normalizeLocationIds(decoded.location_ids)
       : decoded.location_id !== null && decoded.location_id !== undefined
-        ? [decoded.location_id]
+        ? normalizeLocationIds([decoded.location_id])
         : [];
 
     req.user = {

@@ -7,6 +7,7 @@ export interface Location {
   location_address: string;
   location_type: LocationType;
   is_active: boolean;
+  created_by: number | null;
   created_at: Date;
   updated_at?: Date;
 }
@@ -17,6 +18,7 @@ export interface LocationCreateDto {
   location_address: string;
   location_type: LocationType;
   is_active?: boolean;
+  created_by: number;
 }
 
 export interface LocationUpdateDto {
@@ -33,6 +35,7 @@ export interface LocationResponse {
   location_address: string;
   location_type: LocationType;
   is_active: boolean;
+  created_by: number | null;
   created_at: Date;
   updated_at?: Date;
 }

@@ -1,7 +1,12 @@
-import { Pool } from 'pg';
+import { Pool, types } from 'pg';
 import dotenv from 'dotenv';
 
 dotenv.config();
+
+types.setTypeParser(1114, (value: string) => {
+  return new Date(value.replace(' ', 'T') + 'Z').toISOString();
+});
+types.setTypeParser(1184, (value: string) => new Date(value).toISOString()); 
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,

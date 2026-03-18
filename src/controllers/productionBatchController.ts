@@ -81,6 +81,7 @@ export class ProductionBatchController {
         produced_qty,
         production_date,
         expired_date,
+        changed_by: user.user_id,
       });
 
       res.json({
@@ -192,7 +193,7 @@ export class ProductionBatchController {
         return;
       }
 
-      const result = await productionBatchService.cancelBatch(batchId);
+      const result = await productionBatchService.cancelBatch(batchId, user.user_id);
 
       res.json({
         success: true,
@@ -228,7 +229,7 @@ export class ProductionBatchController {
         return;
       }
 
-      const result = await productionBatchService.sendToQC(batchId);
+      const result = await productionBatchService.sendToQC(batchId, user.user_id);
 
       res.json({
         success: true,
@@ -264,7 +265,7 @@ export class ProductionBatchController {
         return;
       }
 
-      const result = await productionBatchService.undoSendToQC(batchId);
+      const result = await productionBatchService.undoSendToQC(batchId, user.user_id);
 
       res.json({
         success: true,
@@ -302,6 +303,42 @@ export class ProductionBatchController {
       res.status(400).json({
         success: false,
         message: error.message || 'Failed to get batches',
+      });
+    }
+  };
+
+  getBatchStatusHistory = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const user = req.user;
+      if (!user) {
+        res.status(401).json({
+          success: false,
+          message: 'Unauthorized',
+        });
+        return;
+      }
+
+      const batchId = parseInt(req.params.id as string, 10);
+      if (isNaN(batchId)) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid batch ID',
+        });
+        return;
+      }
+
+      const history = await productionBatchService.getBatchStatusHistory(batchId);
+
+      res.json({
+        success: true,
+        data: history,
+      });
+    } catch (error: any) {
+      console.error('Get batch status history error:', error);
+      const statusCode = error.message.includes('not found') ? 404 : 400;
+      res.status(statusCode).json({
+        success: false,
+        message: error.message || 'Failed to get batch status history',
       });
     }
   };

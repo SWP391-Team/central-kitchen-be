@@ -1,5 +1,6 @@
 import pool from '../config/database';
 import batchTransferRepository from '../repositories/batchTransferRepository';
+import productionBatchRepository from '../repositories/productionBatchRepository';
 import inventoryRepository from '../repositories/inventoryRepository';
 import { BatchTransferCreateDto, BatchTransferWithDetails } from '../models/BatchTransfer';
 
@@ -150,10 +151,11 @@ export class BatchTransferService {
       const newTotalTransferred = existingTransferQty + dto.transfer_qty;
       const newBatchStatus =
         newTotalTransferred >= batch.good_qty ? 'delivered' : 'delivering';
-      await client.query(
-        `UPDATE production_batch SET status = $1 WHERE batch_id = $2`,
-        [newBatchStatus, dto.batch_id]
-      );
+      await productionBatchRepository.updateStatusWithHistory(dto.batch_id, newBatchStatus, {
+        client,
+        changed_by: dto.created_by,
+        note: 'Batch transfer created',
+      });
 
       await client.query('COMMIT');
 
@@ -169,8 +171,8 @@ export class BatchTransferService {
     }
   }
 
-  async getAllBatchTransfers(): Promise<BatchTransferWithDetails[]> {
-    return batchTransferRepository.findAll();
+  async getAllBatchTransfers(locationIds?: number[]): Promise<BatchTransferWithDetails[]> {
+    return batchTransferRepository.findAll(locationIds);
   }
 
   async getBatchTransfersByBatchId(
@@ -179,11 +181,19 @@ export class BatchTransferService {
     return batchTransferRepository.findByBatchId(batchId);
   }
 
-  async getDeliveringBatchTransfers(): Promise<BatchTransferWithDetails[]> {
-    return batchTransferRepository.findDelivering();
+  async getBatchTransferById(
+    transferId: number
+  ): Promise<BatchTransferWithDetails | null> {
+    return batchTransferRepository.findById(transferId);
   }
 
-  async completeReceive(transferId: number): Promise<void> {
+  async getDeliveringBatchTransfers(
+    locationIds?: number[]
+  ): Promise<BatchTransferWithDetails[]> {
+    return batchTransferRepository.findDelivering(locationIds);
+  }
+
+  async completeReceive(transferId: number, changedBy?: number): Promise<void> {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -223,10 +233,11 @@ export class BatchTransferService {
         client
       );
       if (total > 0 && total === received) {
-        await client.query(
-          `UPDATE production_batch SET status = 'received' WHERE batch_id = $1`,
-          [transfer.batch_id]
-        );
+        await productionBatchRepository.updateStatusWithHistory(transfer.batch_id, 'received', {
+          client,
+          changed_by: changedBy ?? null,
+          note: 'All transfers for batch received',
+        });
       }
 
       await client.query('COMMIT');

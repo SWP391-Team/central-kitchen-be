@@ -18,7 +18,7 @@ export class ProductService {
     return product;
   }
 
-  async createProduct(productData: ProductCreateDto): Promise<Product> {
+  async createProduct(productData: ProductCreateDto, createdBy: number): Promise<Product> {
     if (!productData.product_name || !productData.product_name.trim()) {
       throw new Error('Product name is required');
     }
@@ -43,7 +43,10 @@ export class ProductService {
       throw new Error('Product with this name and unit already exists');
     }
 
-    return await productRepository.create(productData);
+    return await productRepository.create({
+      ...productData,
+      created_by: createdBy,
+    });
   }
 
   async updateProduct(productId: number, productData: ProductUpdateDto): Promise<Product> {

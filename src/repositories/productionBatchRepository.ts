@@ -1,7 +1,133 @@
 import pool from '../config/database';
-import { ProductionBatch, ProductionBatchCreateDto, ProductionBatchFinishDto, ProductionBatchWithDetails } from '../models/ProductionBatch';
+import { PoolClient } from 'pg';
+import {
+  BatchStatusHistory,
+  ProductionBatch,
+  ProductionBatchCreateDto,
+  ProductionBatchFinishDto,
+  ProductionBatchWithDetails,
+} from '../models/ProductionBatch';
 
 export class ProductionBatchRepository {
+  private getTransitionNote(oldStatus: string | null, newStatus: string): string {
+    const transition = `${oldStatus ?? 'null'}->${newStatus}`;
+    const transitionNotes: Record<string, string> = {
+      'null->producing': 'Batch created',
+      'producing->produced': 'Production finished',
+      'producing->cancelled': 'Batch cancelled',
+      'produced->cancelled': 'Batch cancelled',
+      'produced->waiting_qc': 'Sent to QC',
+      'waiting_qc->produced': 'Undo send to QC',
+      'waiting_qc->under_qc': 'Inspection started',
+      'under_qc->rework_required': 'Rework requested',
+      'qc_failed->under_qc': 'Reinspection started',
+      'qc_passed->under_qc': 'Inspection undone',
+      'rework_required->under_qc': 'Inspection undone',
+      'rework_failed->under_qc': 'Inspection undone',
+      'under_qc->qc_passed': 'Inspection passed',
+      'under_qc->qc_failed': 'Inspection failed',
+      'qc_failed->rework_required': 'Rework requested',
+      'rework_required->reworking': 'Rework started',
+      'reworking->reworked': 'Rework completed',
+      'reworking->rework_failed': 'Rework failed',
+      'reworked->waiting_qc': 'Sent to QC after rework',
+      'waiting_qc->reworked': 'Undo rework from QC',
+      'reworked->reworking': 'Undo rework completion',
+      'rework_failed->reworking': 'Undo rework completion',
+      'produced->delivering': 'Delivery started',
+      'delivering->delivered': 'Delivery completed',
+      'delivering->received': 'All transfers received',
+      'delivered->received': 'All transfers received',
+      'qc_failed->rejected': 'Batch rejected',
+    };
+
+    return transitionNotes[transition] || `Status changed: ${oldStatus ?? '-'} -> ${newStatus}`;
+  }
+
+  private async appendStatusHistory(
+    queryable: { query: (text: string, params?: any[]) => Promise<any> },
+    batchId: number,
+    oldStatus: string | null,
+    newStatus: string,
+    changedBy?: number | null,
+    note?: string | null
+  ): Promise<void> {
+    await queryable.query(
+      `INSERT INTO batch_status_history (
+         batch_id,
+         old_status,
+         new_status,
+         changed_by,
+         changed_at,
+         note
+       )
+       VALUES ($1, $2, $3, $4, NOW(), $5)`,
+      [batchId, oldStatus, newStatus, changedBy ?? null, note ?? null]
+    );
+  }
+
+  async updateStatusWithHistory(
+    batchId: number,
+    newStatus: string,
+    options?: {
+      changed_by?: number | null;
+      note?: string | null;
+      client?: PoolClient;
+    }
+  ): Promise<ProductionBatch | null> {
+    const queryable = options?.client || pool;
+
+    const currentResult = await queryable.query(
+      `SELECT status
+       FROM production_batch
+       WHERE batch_id = $1
+       FOR UPDATE`,
+      [batchId]
+    );
+
+    if (currentResult.rows.length === 0) {
+      return null;
+    }
+
+    const oldStatus: string | null = currentResult.rows[0].status;
+    if (oldStatus === newStatus) {
+      const sameResult = await queryable.query(
+        `SELECT * FROM production_batch WHERE batch_id = $1`,
+        [batchId]
+      );
+      return sameResult.rows[0] || null;
+    }
+
+    const updatedResult = await queryable.query(
+      `UPDATE production_batch
+       SET status = $1
+       WHERE batch_id = $2
+       RETURNING *`,
+      [newStatus, batchId]
+    );
+
+    if (updatedResult.rows.length === 0) {
+      return null;
+    }
+
+    const explicitNote =
+      typeof options?.note === 'string' && options.note.trim()
+        ? options.note.trim()
+        : null;
+    const historyNote = explicitNote ?? this.getTransitionNote(oldStatus, newStatus);
+
+    await this.appendStatusHistory(
+      queryable,
+      batchId,
+      oldStatus,
+      newStatus,
+      options?.changed_by,
+      historyNote
+    );
+
+    return updatedResult.rows[0];
+  }
+
   async getNextBatchCode(): Promise<string> {
     const now = new Date();
     const year = now.getFullYear();
@@ -51,30 +177,54 @@ export class ProductionBatchRepository {
     ];
     
     const result = await pool.query(query, values);
-    return result.rows[0];
+    const created = result.rows[0];
+
+    await this.appendStatusHistory(
+      pool,
+      created.batch_id,
+      null,
+      'producing',
+      batchData.created_by,
+      'Batch created from production plan'
+    );
+
+    return created;
   }
 
   async finishProduction(batchId: number, finishData: ProductionBatchFinishDto): Promise<ProductionBatch | null> {
-    const query = `
-      UPDATE production_batch
-      SET 
-        produced_qty = $1,
-        production_date = $2,
-        expired_date = $3,
-        status = 'produced'
-      WHERE batch_id = $4
-      RETURNING *
-    `;
-    
-    const values = [
-      finishData.produced_qty,
-      finishData.production_date,
-      finishData.expired_date,
-      batchId
-    ];
-    
-    const result = await pool.query(query, values);
-    return result.rows[0] || null;
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      await client.query(
+        `UPDATE production_batch
+         SET
+           produced_qty = $1,
+           production_date = $2,
+           expired_date = $3
+         WHERE batch_id = $4`,
+        [
+          finishData.produced_qty,
+          finishData.production_date,
+          finishData.expired_date,
+          batchId,
+        ]
+      );
+
+      const updated = await this.updateStatusWithHistory(batchId, 'produced', {
+        client,
+        changed_by: finishData.changed_by ?? null,
+        note: 'Finish production',
+      });
+
+      await client.query('COMMIT');
+      return updated;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async create(batchData: ProductionBatchCreateDto): Promise<ProductionBatch> {
@@ -132,28 +282,13 @@ export class ProductionBatchRepository {
   }
 
   async cancelBatch(batchId: number): Promise<ProductionBatch | null> {
-    const query = `
-      UPDATE production_batch
-      SET 
-        status = 'cancelled'
-      WHERE batch_id = $1
-      RETURNING *
-    `;
-    
-    const result = await pool.query(query, [batchId]);
-    return result.rows[0] || null;
+    return this.updateStatusWithHistory(batchId, 'cancelled', {
+      note: 'Batch cancelled',
+    });
   }
 
   async updateStatus(batchId: number, status: string): Promise<ProductionBatch | null> {
-    const query = `
-      UPDATE production_batch
-      SET status = $1
-      WHERE batch_id = $2
-      RETURNING *
-    `;
-    
-    const result = await pool.query(query, [status, batchId]);
-    return result.rows[0] || null;
+    return this.updateStatusWithHistory(batchId, status);
   }
 
   async getAllBatches(): Promise<ProductionBatchWithDetails[]> {
@@ -173,6 +308,26 @@ export class ProductionBatchRepository {
     
     const result = await pool.query(query);
     return result.rows;
+  }
+
+  async getStatusHistoryByBatchId(batchId: number): Promise<BatchStatusHistory[]> {
+    const query = `
+      SELECT
+        bsh.*,
+        u.username AS changed_by_username
+      FROM batch_status_history bsh
+      LEFT JOIN "user" u ON bsh.changed_by = u.user_id
+      WHERE bsh.batch_id = $1
+      ORDER BY bsh.changed_at ASC, bsh.batch_status_history_id ASC
+    `;
+
+    const result = await pool.query(query, [batchId]);
+    return result.rows.map((row) => ({
+      ...row,
+      note: (row.note && String(row.note).trim())
+        ? row.note
+        : this.getTransitionNote(row.old_status ?? null, row.new_status),
+    }));
   }
 }
 

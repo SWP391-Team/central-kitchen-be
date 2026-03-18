@@ -44,10 +44,11 @@ export class ReworkRecordService {
 
       const rework = await reworkRecordRepository.startRework(data, reworkQty);
 
-      await client.query(
-        `UPDATE production_batch SET status = 'reworking' WHERE batch_id = $1`,
-        [data.batch_id]
-      );
+      await productionBatchRepository.updateStatusWithHistory(data.batch_id, 'reworking', {
+        client,
+        changed_by: data.created_by,
+        note: 'Rework started',
+      });
 
       await client.query('COMMIT');
 
@@ -99,16 +100,15 @@ export class ReworkRecordService {
     try {
       await client.query('BEGIN');
 
-      // Kiểm tra reworkable_qty = 0 -> Rework Failed
       if (data.reworkable_qty === 0) {
-        // Status = "Rework Failed", không cho phép send to QC
         const reworkStatus = 'Rework Failed';
         const batchStatusAfterRework = 'rework_failed';
 
-        await client.query(
-          `UPDATE production_batch SET status = $1 WHERE batch_id = $2`,
-          [batchStatusAfterRework, rework.batch_id]
-        );
+        await productionBatchRepository.updateStatusWithHistory(rework.batch_id, batchStatusAfterRework, {
+          client,
+          changed_by: reworkBy,
+          note: 'Finish rework: rework failed',
+        });
 
         await reworkRecordRepository.finishRework(
           reworkId,
@@ -145,10 +145,11 @@ export class ReworkRecordService {
           [goodQty, defectQty, rework.batch_id]
         );
       } else {
-        await client.query(
-          `UPDATE production_batch SET status = 'reworked' WHERE batch_id = $1`,
-          [rework.batch_id]
-        );
+        await productionBatchRepository.updateStatusWithHistory(rework.batch_id, 'reworked', {
+          client,
+          changed_by: reworkBy,
+          note: 'Finish rework: reworked',
+        });
 
         await reworkRecordRepository.finishRework(
           reworkId,
@@ -176,7 +177,7 @@ export class ReworkRecordService {
     }
   }
 
-  async sendToQC(batchId: number): Promise<ProductionBatch> {
+  async sendToQC(batchId: number, changedBy?: number): Promise<ProductionBatch> {
     const batch = await productionBatchRepository.findById(batchId);
     if (!batch) {
       throw new Error('Batch not found');
@@ -200,10 +201,11 @@ export class ReworkRecordService {
     try {
       await client.query('BEGIN');
 
-      await client.query(
-        `UPDATE production_batch SET status = 'waiting_qc' WHERE batch_id = $1`,
-        [batchId]
-      );
+      await productionBatchRepository.updateStatusWithHistory(batchId, 'waiting_qc', {
+        client,
+        changed_by: changedBy ?? null,
+        note: 'Reworked batch sent to QC',
+      });
 
       await client.query('COMMIT');
 
@@ -285,16 +287,18 @@ export class ReworkRecordService {
       let targetBatchStatus = 'reworking';
       if (batch.status === 'waiting_qc') {
         targetBatchStatus = 'reworked';
-        await client.query(
-          `UPDATE production_batch SET status = $1 WHERE batch_id = $2`,
-          [targetBatchStatus, rework.batch_id]
-        );
+        await productionBatchRepository.updateStatusWithHistory(rework.batch_id, targetBatchStatus, {
+          client,
+          changed_by: userId,
+          note: 'Undo finish rework (step back from waiting_qc)',
+        });
       }
 
-      await client.query(
-        `UPDATE production_batch SET status = 'reworking' WHERE batch_id = $1`,
-        [rework.batch_id]
-      );
+      await productionBatchRepository.updateStatusWithHistory(rework.batch_id, 'reworking', {
+        client,
+        changed_by: userId,
+        note: 'Undo finish rework',
+      });
 
       if (rework.status === 'Rework Failed') {
         await client.query(

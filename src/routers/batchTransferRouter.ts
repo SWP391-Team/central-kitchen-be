@@ -6,10 +6,10 @@ import { requireRole } from '../middlewares/authMiddleware';
 const router = Router();
 router.use(jwtMiddleware);
 
-router.get('/', requireRole(1, 2), batchTransferController.getAll);
-router.get('/delivering', requireRole(1, 2), batchTransferController.getDelivering);
-router.get('/batch/:batchId', requireRole(1, 2), batchTransferController.getByBatchId);
+router.get('/', requireRole(1, 2, 3), batchTransferController.getAll);
+router.get('/delivering', requireRole(1, 2, 3), batchTransferController.getDelivering);
+router.get('/batch/:batchId', requireRole(1, 2, 3), batchTransferController.getByBatchId);
 router.post('/', requireRole(1, 2), batchTransferController.create);
-router.post('/:id/complete-receive', requireRole(1, 2), batchTransferController.completeReceive);
+router.post('/:id/complete-receive', requireRole(1, 2, 3), batchTransferController.completeReceive);
 
 export default router;

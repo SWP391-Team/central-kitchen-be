@@ -100,7 +100,7 @@ export class ProductionBatchService {
     return batch;
   }
 
-  async cancelBatch(batchId: number): Promise<any> {
+  async cancelBatch(batchId: number, changedBy?: number): Promise<any> {
     const batch = await productionBatchRepository.findById(batchId);
     if (!batch) {
       throw new Error('Batch not found');
@@ -114,7 +114,10 @@ export class ProductionBatchService {
       throw new Error('Can only cancel batches with status "producing" or "produced"');
     }
 
-    const updatedBatch = await productionBatchRepository.cancelBatch(batchId);
+    const updatedBatch = await productionBatchRepository.updateStatusWithHistory(batchId, 'cancelled', {
+      changed_by: changedBy ?? null,
+      note: 'Batch cancelled',
+    });
 
     if (!updatedBatch) {
       throw new Error('Failed to cancel batch');
@@ -131,7 +134,7 @@ export class ProductionBatchService {
     };
   }
 
-  async sendToQC(batchId: number): Promise<any> {
+  async sendToQC(batchId: number, changedBy?: number): Promise<any> {
     const batch = await productionBatchRepository.findById(batchId);
     if (!batch) {
       throw new Error('Batch not found');
@@ -141,7 +144,10 @@ export class ProductionBatchService {
       throw new Error('Can only send batches with status "produced" to QC');
     }
 
-    const updatedBatch = await productionBatchRepository.updateStatus(batchId, 'waiting_qc');
+    const updatedBatch = await productionBatchRepository.updateStatusWithHistory(batchId, 'waiting_qc', {
+      changed_by: changedBy ?? null,
+      note: 'Send to QC',
+    });
 
     if (!updatedBatch) {
       throw new Error('Failed to send batch to QC');
@@ -150,7 +156,7 @@ export class ProductionBatchService {
     return updatedBatch;
   }
 
-  async undoSendToQC(batchId: number): Promise<any> {
+  async undoSendToQC(batchId: number, changedBy?: number): Promise<any> {
     const batch = await productionBatchRepository.findById(batchId);
     if (!batch) {
       throw new Error('Batch not found');
@@ -169,7 +175,10 @@ export class ProductionBatchService {
       );
     }
 
-    const updatedBatch = await productionBatchRepository.updateStatus(batchId, 'produced');
+    const updatedBatch = await productionBatchRepository.updateStatusWithHistory(batchId, 'produced', {
+      changed_by: changedBy ?? null,
+      note: 'Undo send to QC',
+    });
 
     if (!updatedBatch) {
       throw new Error('Failed to undo send to QC');
@@ -180,6 +189,15 @@ export class ProductionBatchService {
 
   async getAllBatches(): Promise<any> {
     return await productionBatchRepository.getAllBatches();
+  }
+
+  async getBatchStatusHistory(batchId: number): Promise<any> {
+    const batch = await productionBatchRepository.findById(batchId);
+    if (!batch) {
+      throw new Error('Batch not found');
+    }
+
+    return await productionBatchRepository.getStatusHistoryByBatchId(batchId);
   }
 }
 

@@ -56,12 +56,12 @@ export class LocationRepository {
   }
 
   async create(locationData: LocationCreateDto): Promise<Location> {
-    const { location_code, location_name, location_address, location_type, is_active = true } = locationData;
+    const { location_code, location_name, location_address, location_type, is_active = true, created_by } = locationData;
     const result = await pool.query(
-      `INSERT INTO location (location_code, location_name, location_address, location_type, is_active) 
-       VALUES ($1, $2, $3, $4, $5) 
+      `INSERT INTO location (location_code, location_name, location_address, location_type, is_active, created_by) 
+       VALUES ($1, $2, $3, $4, $5, $6) 
        RETURNING *`,
-      [location_code, location_name, location_address, location_type, is_active]
+      [location_code, location_name, location_address, location_type, is_active, created_by]
     );
     return result.rows[0];
   }

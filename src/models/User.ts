@@ -7,6 +7,7 @@ export interface User {
   location_id: number | null;
   location_ids: number[];
   is_active: boolean;
+  created_by: number | null;
   created_at: Date;
   updated_at?: Date;
 }
@@ -19,6 +20,7 @@ export interface UserCreateDto {
   location_id?: number | null;
   location_ids?: number[];
   is_active?: boolean;
+  created_by: number;
 }
 
 export interface UserUpdateDto {
@@ -38,6 +40,7 @@ export interface UserResponse {
   location_id: number | null;
   location_ids: number[];
   is_active: boolean;
+  created_by: number | null;
   created_at: Date;
   updated_at?: Date;
 }

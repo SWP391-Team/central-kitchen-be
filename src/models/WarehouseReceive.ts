@@ -10,6 +10,7 @@ export interface WarehouseReceive {
   created_by: number;
   created_at: string;
   status: 'Received';
+  is_over_delivery: boolean;
 }
 
 export interface WarehouseReceiveWithDetails extends WarehouseReceive {

@@ -62,6 +62,14 @@ export class UserController {
 
   createUser = async (req: Request, res: Response): Promise<void> => {
     try {
+      if (!req.user) {
+        res.status(401).json({
+          success: false,
+          message: 'Unauthorized',
+        });
+        return;
+      }
+
       const userData: UserCreateDto = req.body;
 
       if (!userData.user_code || !userData.username || !userData.password || !userData.role_id) {
@@ -72,7 +80,7 @@ export class UserController {
         return;
       }
 
-      const user = await this.userService.createUser(userData);
+      const user = await this.userService.createUser(userData, req.user.user_id);
 
       res.status(201).json({
         success: true,

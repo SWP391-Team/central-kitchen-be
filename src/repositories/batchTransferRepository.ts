@@ -38,20 +38,22 @@ export class BatchTransferRepository {
       transfer_qty: number;
       transfer_date: string;
       created_by: number;
+      supply_order_item_id?: number;
     }
   ): Promise<BatchTransfer> {
     const result = await client.query(
       `INSERT INTO batch_transfer
-         (batch_transfer_code, batch_id, product_id, from_location_id, to_location_id,
+         (batch_transfer_code, supply_order_item_id, batch_id, product_id, from_location_id, to_location_id,
           transfer_qty, transfer_date, lost_qty, status, created_by)
        VALUES (
          'BT-' || TO_CHAR(NOW(), 'YYYYMMDD') || '-' || LPAD(
            ((SELECT COUNT(*) FROM batch_transfer WHERE batch_transfer_code LIKE 'BT-' || TO_CHAR(NOW(), 'YYYYMMDD') || '-%') + 1)::text,
            3, '0'
          ),
-         $1, $2, $3, $4, $5, $6, 0, 'Delivering', $7)
+         $1, $2, $3, $4, $5, $6, $7, 0, 'Delivering', $8)
        RETURNING *`,
       [
+        dto.supply_order_item_id ?? null,
         dto.batch_id,
         dto.product_id,
         dto.from_location_id,
@@ -64,9 +66,16 @@ export class BatchTransferRepository {
     return result.rows[0];
   }
 
-  async findAll(): Promise<BatchTransferWithDetails[]> {
+  async findAll(locationIds?: number[]): Promise<BatchTransferWithDetails[]> {
+    const params: any[] = [];
+    const where =
+      locationIds && locationIds.length > 0
+        ? (params.push(locationIds), 'WHERE bt.to_location_id = ANY($1::int[])')
+        : '';
+
     const result = await pool.query(
-      `${WITH_DETAILS_SELECT} ORDER BY bt.created_at DESC`
+      `${WITH_DETAILS_SELECT} ${where} ORDER BY bt.created_at DESC`,
+      params
     );
     return result.rows;
   }
@@ -98,9 +107,16 @@ export class BatchTransferRepository {
     return result.rows;
   }
 
-  async findDelivering(): Promise<BatchTransferWithDetails[]> {
+  async findDelivering(locationIds?: number[]): Promise<BatchTransferWithDetails[]> {
+    const params: any[] = [];
+    const locationClause =
+      locationIds && locationIds.length > 0
+        ? (params.push(locationIds), ` AND bt.to_location_id = ANY($${params.length}::int[])`)
+        : '';
+
     const result = await pool.query(
-      `${WITH_DETAILS_SELECT} WHERE bt.status = 'Delivering' ORDER BY bt.created_at DESC`
+      `${WITH_DETAILS_SELECT} WHERE bt.status = 'Delivering'${locationClause} ORDER BY bt.created_at DESC`,
+      params
     );
     return result.rows;
   }

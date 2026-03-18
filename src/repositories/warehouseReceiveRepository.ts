@@ -30,18 +30,19 @@ export class WarehouseReceiveRepository {
       received_date: string;
       received_by: number;
       created_by: number;
+      is_over_delivery?: boolean;
     }
   ): Promise<WarehouseReceive> {
     const result = await client.query(
       `INSERT INTO warehouse_receive
          (warehouse_receive_code, batch_transfer_id, batch_id, location_id,
-          received_qty, received_date, received_by, created_by, status)
+          received_qty, received_date, received_by, created_by, status, is_over_delivery)
        VALUES (
          'WR-' || TO_CHAR(NOW(), 'YYYYMMDD') || '-' || LPAD(
            ((SELECT COUNT(*) FROM warehouse_receive WHERE warehouse_receive_code LIKE 'WR-' || TO_CHAR(NOW(), 'YYYYMMDD') || '-%') + 1)::text,
            3, '0'
          ),
-         $1, $2, $3, $4, $5, $6, $7, 'Received')
+         $1, $2, $3, $4, $5, $6, $7, 'Received', $8)
        RETURNING *`,
       [
         data.batch_transfer_id,
@@ -51,24 +52,39 @@ export class WarehouseReceiveRepository {
         data.received_date,
         data.received_by,
         data.created_by,
+        data.is_over_delivery ?? false,
       ]
     );
     return result.rows[0];
   }
 
-  async findAll(): Promise<WarehouseReceiveWithDetails[]> {
+  async findAll(locationIds?: number[]): Promise<WarehouseReceiveWithDetails[]> {
+    const params: any[] = [];
+    const where =
+      locationIds && locationIds.length > 0
+        ? (params.push(locationIds), 'WHERE wr.location_id = ANY($1::int[])')
+        : '';
+
     const result = await pool.query(
-      `${WITH_DETAILS_SELECT} ORDER BY wr.created_at DESC`
+      `${WITH_DETAILS_SELECT} ${where} ORDER BY wr.created_at DESC`,
+      params
     );
     return result.rows;
   }
 
   async findByBatchTransferId(
-    transferId: number
+    transferId: number,
+    locationIds?: number[]
   ): Promise<WarehouseReceiveWithDetails[]> {
+    const params: any[] = [transferId];
+    const locationClause =
+      locationIds && locationIds.length > 0
+        ? (params.push(locationIds), ` AND wr.location_id = ANY($${params.length}::int[])`)
+        : '';
+
     const result = await pool.query(
-      `${WITH_DETAILS_SELECT} WHERE wr.batch_transfer_id = $1 ORDER BY wr.created_at DESC`,
-      [transferId]
+      `${WITH_DETAILS_SELECT} WHERE wr.batch_transfer_id = $1${locationClause} ORDER BY wr.created_at DESC`,
+      params
     );
     return result.rows;
   }

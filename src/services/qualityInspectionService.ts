@@ -44,10 +44,11 @@ export class QualityInspectionService {
 
       const inspection = await qualityInspectionRepository.startInspection(data);
 
-      await client.query(
-        `UPDATE production_batch SET status = 'under_qc' WHERE batch_id = $1`,
-        [data.batch_id]
-      );
+      await productionBatchRepository.updateStatusWithHistory(data.batch_id, 'under_qc', {
+        client,
+        changed_by: data.created_by,
+        note: 'QC inspection started',
+      });
 
       await client.query('COMMIT');
 
@@ -117,17 +118,13 @@ export class QualityInspectionService {
 
       const newBatchStatus = data.inspection_result === 'Pass' ? 'qc_passed' : 'qc_failed';
 
-      const updatedInspection = await qualityInspectionRepository.finishInspection(
-        inspectionId,
-        data,
-        inspectedBy,
-        newBatchStatus
-      );
+    
 
-      await client.query(
-        `UPDATE production_batch SET status = $1 WHERE batch_id = $2`,
-        [newBatchStatus, inspection.batch_id]
-      );
+      await productionBatchRepository.updateStatusWithHistory(inspection.batch_id, newBatchStatus, {
+        client,
+        changed_by: inspectedBy,
+        note: `QC inspection finished: ${data.inspection_result}`,
+      });
 
       if (data.inspection_result === 'Pass') {
         const isMaxInspection = await qualityInspectionRepository.isMaxInspectionNo(
@@ -273,10 +270,11 @@ export class QualityInspectionService {
 
       const inspection = await qualityInspectionRepository.startInspection(data);
 
-      await client.query(
-        `UPDATE production_batch SET status = 'under_qc' WHERE batch_id = $1`,
-        [data.batch_id]
-      );
+      await productionBatchRepository.updateStatusWithHistory(data.batch_id, 'under_qc', {
+        client,
+        changed_by: data.created_by,
+        note: 'QC reinspection started',
+      });
 
       await client.query('COMMIT');
 
@@ -295,7 +293,7 @@ export class QualityInspectionService {
     }
   }
 
-  async rejectBatch(batchId: number): Promise<ProductionBatch> {
+  async rejectBatch(batchId: number, rejectBy?: number): Promise<ProductionBatch> {
     const batch = await productionBatchRepository.findById(batchId);
     if (!batch) {
       throw new Error('Batch not found');
@@ -327,12 +325,11 @@ export class QualityInspectionService {
     try {
       await client.query('BEGIN');
 
-      await client.query(
-        `UPDATE production_batch 
-         SET status = 'rejected' 
-         WHERE batch_id = $1`,
-        [batchId]
-      );
+      await productionBatchRepository.updateStatusWithHistory(batchId, 'rejected', {
+        client,
+        changed_by: rejectBy ?? null,
+        note: 'Batch rejected after QC failed',
+      });
 
       await client.query(
         `UPDATE quality_inspection 
@@ -447,7 +444,7 @@ export class QualityInspectionService {
     return qualityInspectionRepository.findByBatchId(batchId);
   }
 
-  async sendReworkRequest(inspectionId: number): Promise<ProductionBatch> {
+  async sendReworkRequest(inspectionId: number, requestedBy?: number): Promise<ProductionBatch> {
     const inspection = await qualityInspectionRepository.findById(inspectionId);
     if (!inspection) {
       throw new Error('Inspection not found');
@@ -470,10 +467,11 @@ export class QualityInspectionService {
     try {
       await client.query('BEGIN');
 
-      await client.query(
-        `UPDATE production_batch SET status = 'rework_required' WHERE batch_id = $1`,
-        [inspection.batch_id]
-      );
+      await productionBatchRepository.updateStatusWithHistory(inspection.batch_id, 'rework_required', {
+        client,
+        changed_by: requestedBy ?? null,
+        note: 'Rework requested from QC',
+      });
 
       await client.query('COMMIT');
 
@@ -544,10 +542,11 @@ export class QualityInspectionService {
         userId
       );
 
-      await client.query(
-        `UPDATE production_batch SET status = 'under_qc' WHERE batch_id = $1`,
-        [inspection.batch_id]
-      );
+      await productionBatchRepository.updateStatusWithHistory(inspection.batch_id, 'under_qc', {
+        client,
+        changed_by: userId,
+        note: 'Undo QC inspection',
+      });
 
       await client.query('COMMIT');
 

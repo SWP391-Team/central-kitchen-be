@@ -80,9 +80,17 @@ export class ProductController {
 
   createProduct = async (req: Request, res: Response): Promise<void> => {
     try {
+      if (!req.user) {
+        res.status(401).json({
+          success: false,
+          message: 'Unauthorized',
+        });
+        return;
+      }
+
       const productData: ProductCreateDto = req.body;
       
-      const newProduct = await productService.createProduct(productData);
+      const newProduct = await productService.createProduct(productData, req.user.user_id);
       
       res.status(201).json({
         success: true,

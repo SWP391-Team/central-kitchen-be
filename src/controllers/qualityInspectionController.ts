@@ -115,7 +115,7 @@ export class QualityInspectionController {
     try {
       const batchId = parseInt(req.params.batchId as string);
 
-      const result = await qualityInspectionService.rejectBatch(batchId);
+      const result = await qualityInspectionService.rejectBatch(batchId, req.user!.user_id);
 
       res.status(200).json({
         success: true,
@@ -214,7 +214,7 @@ export class QualityInspectionController {
     try {
       const inspectionId = parseInt(req.params.id as string);
 
-      const result = await qualityInspectionService.sendReworkRequest(inspectionId);
+      const result = await qualityInspectionService.sendReworkRequest(inspectionId, req.user!.user_id);
 
       res.status(200).json({
         success: true,

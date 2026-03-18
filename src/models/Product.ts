@@ -5,6 +5,7 @@ export interface Product {
   unit: string;
   shelf_life_days: number;
   is_active: boolean;
+  created_by: number | null;
   created_at?: Date;
   updated_at?: Date;
 }
@@ -13,6 +14,7 @@ export interface ProductCreateDto {
   product_name: string;
   unit: string;
   shelf_life_days: number;
+  created_by: number;
 }
 
 export interface ProductUpdateDto {
@@ -28,6 +30,7 @@ export interface ProductResponse {
   unit: string;
   shelf_life_days: number;
   is_active: boolean;
+  created_by: number | null;
   created_at: Date;
   updated_at: Date;
 }
