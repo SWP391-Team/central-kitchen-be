@@ -1,8 +1,8 @@
 import pool from '../config/database';
-import { Store, StoreCreateDto, StoreUpdateDto } from '../models/Store';
+import { Location, LocationCreateDto, LocationUpdateDto } from '../models/Location';
 
-export class StoreRepository {
-  async findAll(params?: { search?: string; is_active?: boolean; location_type?: string }): Promise<Store[]> {
+export class LocationRepository {
+  async findAll(params?: { search?: string; is_active?: boolean; location_type?: string }): Promise<Location[]> {
     let query = 'SELECT * FROM location WHERE 1=1';
     const values: any[] = [];
     let paramCount = 1;
@@ -31,32 +31,32 @@ export class StoreRepository {
     return result.rows;
   }
 
-  async findById(storeId: number): Promise<Store | null> {
+  async findById(locationId: number): Promise<Location | null> {
     const result = await pool.query(
       'SELECT * FROM location WHERE location_id = $1',
-      [storeId]
+      [locationId]
     );
     return result.rows[0] || null;
   }
 
-  async findByName(storeName: string): Promise<Store | null> {
+  async findByName(locationName: string): Promise<Location | null> {
     const result = await pool.query(
       'SELECT * FROM location WHERE location_name = $1',
-      [storeName]
+      [locationName]
     );
     return result.rows[0] || null;
   }
 
-  async findByStoreCode(storeCode: string): Promise<Store | null> {
+  async findByCode(locationCode: string): Promise<Location | null> {
     const result = await pool.query(
       'SELECT * FROM location WHERE location_code = $1',
-      [storeCode]
+      [locationCode]
     );
     return result.rows[0] || null;
   }
 
-  async create(storeData: StoreCreateDto): Promise<Store> {
-    const { location_code, location_name, location_address, location_type, is_active = true } = storeData;
+  async create(locationData: LocationCreateDto): Promise<Location> {
+    const { location_code, location_name, location_address, location_type, is_active = true } = locationData;
     const result = await pool.query(
       `INSERT INTO location (location_code, location_name, location_address, location_type, is_active) 
        VALUES ($1, $2, $3, $4, $5) 
@@ -66,33 +66,33 @@ export class StoreRepository {
     return result.rows[0];
   }
 
-  async update(storeId: number, storeData: StoreUpdateDto): Promise<Store | null> {
+  async update(locationId: number, locationData: LocationUpdateDto): Promise<Location | null> {
     const fields: string[] = [];
     const values: any[] = [];
     let paramCount = 1;
 
-    if (storeData.location_name !== undefined) {
+    if (locationData.location_name !== undefined) {
       fields.push(`location_name = $${paramCount++}`);
-      values.push(storeData.location_name);
+      values.push(locationData.location_name);
     }
-    if (storeData.location_address !== undefined) {
+    if (locationData.location_address !== undefined) {
       fields.push(`location_address = $${paramCount++}`);
-      values.push(storeData.location_address);
+      values.push(locationData.location_address);
     }
-    if (storeData.location_type !== undefined) {
+    if (locationData.location_type !== undefined) {
       fields.push(`location_type = $${paramCount++}`);
-      values.push(storeData.location_type);
+      values.push(locationData.location_type);
     }
-    if (storeData.is_active !== undefined) {
+    if (locationData.is_active !== undefined) {
       fields.push(`is_active = $${paramCount++}`);
-      values.push(storeData.is_active);
+      values.push(locationData.is_active);
     }
 
     if (fields.length === 0) {
-      return this.findById(storeId);
+      return this.findById(locationId);
     }
 
-    values.push(storeId);
+    values.push(locationId);
     const result = await pool.query(
       `UPDATE location SET ${fields.join(', ')} WHERE location_id = $${paramCount} RETURNING *`,
       values
@@ -100,26 +100,26 @@ export class StoreRepository {
     return result.rows[0] || null;
   }
 
-  async updateStatus(storeId: number, is_active: boolean): Promise<Store | null> {
+  async updateStatus(locationId: number, is_active: boolean): Promise<Location | null> {
     const result = await pool.query(
       'UPDATE location SET is_active = $1 WHERE location_id = $2 RETURNING *',
-      [is_active, storeId]
+      [is_active, locationId]
     );
     return result.rows[0] || null;
   }
 
-  async delete(storeId: number): Promise<boolean> {
+  async delete(locationId: number): Promise<boolean> {
     const result = await pool.query(
       'DELETE FROM location WHERE location_id = $1',
-      [storeId]
+      [locationId]
     );
     return result.rowCount ? result.rowCount > 0 : false;
   }
 
-  async hasUsers(storeId: number): Promise<boolean> {
+  async hasUsers(locationId: number): Promise<boolean> {
     const result = await pool.query(
       'SELECT COUNT(*) as count FROM user_location WHERE location_id = $1',
-      [storeId]
+      [locationId]
     );
     return parseInt(result.rows[0].count) > 0;
   }

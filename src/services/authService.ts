@@ -1,7 +1,7 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { UserRepository } from '../repositories/userRepository';
-import { StoreRepository } from '../repositories/storeRepository';
+import { LocationRepository } from '../repositories/locationRepository';
 
 export interface LoginDto {
   username: string;
@@ -22,12 +22,12 @@ export interface AuthResponse {
 
 export class AuthService {
   private userRepository: UserRepository;
-  private storeRepository: StoreRepository;
+  private locationRepository: LocationRepository;
   private jwtSecret: string;
 
   constructor() {
     this.userRepository = new UserRepository();
-    this.storeRepository = new StoreRepository();
+    this.locationRepository = new LocationRepository();
     this.jwtSecret = process.env.JWT_SECRET || 'your-secret-key';
   }
 
@@ -47,7 +47,7 @@ export class AuthService {
       ? user.location_ids
       : (user.location_id !== null ? [user.location_id] : []);
     for (const locationId of locationIds) {
-      const location = await this.storeRepository.findById(locationId);
+      const location = await this.locationRepository.findById(locationId);
       if (!location || !location.is_active) {
         throw new Error('One of your assigned locations is inactive. Please contact administrator.');
       }

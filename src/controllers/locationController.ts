@@ -1,15 +1,15 @@
 import { Request, Response } from 'express';
-import { StoreService } from '../services/storeService';
-import { StoreCreateDto, StoreUpdateDto } from '../models/Store';
+import { LocationService } from '../services/locationService';
+import { LocationCreateDto, LocationUpdateDto } from '../models/Location';
 
-export class StoreController {
-  private storeService: StoreService;
+export class LocationController {
+  private locationService: LocationService;
 
   constructor() {
-    this.storeService = new StoreService();
+    this.locationService = new LocationService();
   }
 
-  getAllStores = async (req: Request, res: Response): Promise<void> => {
+  getAllLocations = async (req: Request, res: Response): Promise<void> => {
     try {
       const { search, is_active, location_type } = req.query;
       
@@ -18,10 +18,10 @@ export class StoreController {
       if (is_active !== undefined) params.is_active = is_active === 'true';
       if (location_type) params.location_type = location_type as string;
 
-      const stores = await this.storeService.getAllStores(params);
+      const locations = await this.locationService.getAllLocations(params);
       res.json({
         success: true,
-        data: stores,
+        data: locations,
       });
     } catch (error) {
       console.error('Get all stores error:', error);
@@ -32,11 +32,11 @@ export class StoreController {
     }
   };
 
-  getStoreById = async (req: Request, res: Response): Promise<void> => {
+  getLocationById = async (req: Request, res: Response): Promise<void> => {
     try {
-      const storeId = parseInt(req.params.id as string);
+      const locationId = parseInt(req.params.id as string);
       
-      if (isNaN(storeId)) {
+      if (isNaN(locationId)) {
         res.status(400).json({
           success: false,
           message: 'Invalid location ID',
@@ -44,11 +44,11 @@ export class StoreController {
         return;
       }
 
-      const store = await this.storeService.getStoreById(storeId);
+      const location = await this.locationService.getLocationById(locationId);
       
       res.json({
         success: true,
-        data: store,
+        data: location,
       });
     } catch (error: any) {
       console.error('Get store by ID error:', error);
@@ -66,11 +66,11 @@ export class StoreController {
     }
   };
 
-  createStore = async (req: Request, res: Response): Promise<void> => {
+  createLocation = async (req: Request, res: Response): Promise<void> => {
     try {
-      const storeData: StoreCreateDto = req.body;
+      const locationData: LocationCreateDto = req.body;
 
-      if (!storeData.location_code || !storeData.location_name || !storeData.location_address || !storeData.location_type) {
+      if (!locationData.location_code || !locationData.location_name || !locationData.location_address || !locationData.location_type) {
         res.status(400).json({
           success: false,
           message: 'location_code, location_name, location_address and location_type are required',
@@ -78,11 +78,11 @@ export class StoreController {
         return;
       }
 
-      const store = await this.storeService.createStore(storeData);
+      const location = await this.locationService.createLocation(locationData);
 
       res.status(201).json({
         success: true,
-        data: store,
+        data: location,
         message: 'Location created successfully',
       });
     } catch (error: any) {
@@ -111,11 +111,11 @@ export class StoreController {
     }
   };
 
-  updateStore = async (req: Request, res: Response): Promise<void> => {
+  updateLocation = async (req: Request, res: Response): Promise<void> => {
     try {
-      const storeId = parseInt(req.params.id as string);
+      const locationId = parseInt(req.params.id as string);
       
-      if (isNaN(storeId)) {
+      if (isNaN(locationId)) {
         res.status(400).json({
           success: false,
           message: 'Invalid location ID',
@@ -123,9 +123,9 @@ export class StoreController {
         return;
       }
 
-      const storeData: StoreUpdateDto = req.body;
+      const locationData: LocationUpdateDto = req.body;
 
-      if (Object.keys(storeData).length === 0) {
+      if (Object.keys(locationData).length === 0) {
         res.status(400).json({
           success: false,
           message: 'No update data provided',
@@ -133,11 +133,11 @@ export class StoreController {
         return;
       }
 
-      const store = await this.storeService.updateStore(storeId, storeData);
+      const location = await this.locationService.updateLocation(locationId, locationData);
 
       res.json({
         success: true,
-        data: store,
+        data: location,
         message: 'Location updated successfully',
       });
     } catch (error: any) {
@@ -166,12 +166,12 @@ export class StoreController {
     }
   };
 
-  toggleStoreStatus = async (req: Request, res: Response): Promise<void> => {
+  toggleLocationStatus = async (req: Request, res: Response): Promise<void> => {
     try {
-      const storeId = parseInt(req.params.id as string);
+      const locationId = parseInt(req.params.id as string);
       const { is_active } = req.body;
       
-      if (isNaN(storeId)) {
+      if (isNaN(locationId)) {
         res.status(400).json({
           success: false,
           message: 'Invalid location ID',
@@ -187,11 +187,11 @@ export class StoreController {
         return;
       }
 
-      const store = await this.storeService.toggleStoreStatus(storeId, is_active);
+      const location = await this.locationService.toggleLocationStatus(locationId, is_active);
 
       res.json({
         success: true,
-        data: store,
+        data: location,
         message: `Location ${is_active ? 'activated' : 'deactivated'} successfully`,
       });
     } catch (error: any) {
@@ -210,11 +210,11 @@ export class StoreController {
     }
   };
 
-  deleteStore = async (req: Request, res: Response): Promise<void> => {
+  deleteLocation = async (req: Request, res: Response): Promise<void> => {
     try {
-      const storeId = parseInt(req.params.id as string);
+      const locationId = parseInt(req.params.id as string);
       
-      if (isNaN(storeId)) {
+      if (isNaN(locationId)) {
         res.status(400).json({
           success: false,
           message: 'Invalid location ID',
@@ -222,7 +222,7 @@ export class StoreController {
         return;
       }
 
-      await this.storeService.deleteStore(storeId);
+      await this.locationService.deleteLocation(locationId);
 
       res.json({
         success: true,

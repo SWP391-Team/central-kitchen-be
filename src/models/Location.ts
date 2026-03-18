@@ -1,6 +1,6 @@
 export type LocationType = 'CK_PRODUCTION' | 'CK_WAREHOUSE' | 'STORE';
 
-export interface Store {
+export interface Location {
   location_id: number;
   location_code: string;
   location_name: string;
@@ -11,7 +11,7 @@ export interface Store {
   updated_at?: Date;
 }
 
-export interface StoreCreateDto {
+export interface LocationCreateDto {
   location_code: string;
   location_name: string;
   location_address: string;
@@ -19,14 +19,14 @@ export interface StoreCreateDto {
   is_active?: boolean;
 }
 
-export interface StoreUpdateDto {
+export interface LocationUpdateDto {
   location_name?: string;
   location_address?: string;
   location_type?: LocationType;
   is_active?: boolean;
 }
 
-export interface StoreResponse {
+export interface LocationResponse {
   location_id: number;
   location_code: string;
   location_name: string;

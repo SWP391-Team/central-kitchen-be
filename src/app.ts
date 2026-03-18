@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 import pool from './config/database';
 import authRouter from './routers/authRouter';
 import userRouter from './routers/userRouter';
-import storeRouter from './routers/storeRouter';
+import locationRouter from './routers/locationRouter';
 import productRouter from './routers/productRouter';
 import productionPlanRouter from './routers/productionPlanRouter';
 import productionBatchRouter from './routers/productionBatchRouter';
@@ -23,8 +23,7 @@ app.use(express.json());
 
 app.use('/api/auth', authRouter);
 app.use('/api/users', userRouter);
-app.use('/api/stores', storeRouter);
-app.use('/api/locations', storeRouter);
+app.use('/api/locations', locationRouter);
 app.use('/api/products', productRouter);
 app.use('/api/production-plans', productionPlanRouter);
 app.use('/api/production-batches', productionBatchRouter);
