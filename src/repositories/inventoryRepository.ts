@@ -70,10 +70,12 @@ export class InventoryRepository {
          l.location_name,
          p.product_name,
          p.product_code,
+         un.unit_name,
          pb.batch_code
        FROM inventory_transaction it
        LEFT JOIN location         l  ON it.location_id = l.location_id
        LEFT JOIN product          p  ON it.product_id  = p.product_id
+       LEFT JOIN unit             un ON p.unit_id      = un.unit_id
        LEFT JOIN production_batch pb ON it.batch_id    = pb.batch_id
        ${where}
        ORDER BY it.created_at DESC`,
@@ -147,10 +149,14 @@ export class InventoryRepository {
          l.location_name,
          p.product_name,
          p.product_code,
-         pb.batch_code
+         un.unit_name,
+         pb.batch_code,
+         pb.production_date,
+         pb.expired_date
        FROM batch_inventory bi
        LEFT JOIN location         l  ON bi.location_id = l.location_id
        LEFT JOIN product          p  ON bi.product_id  = p.product_id
+       LEFT JOIN unit             un ON p.unit_id      = un.unit_id
        LEFT JOIN production_batch pb ON bi.batch_id    = pb.batch_id
        ${where}
        ORDER BY bi.updated_at DESC`,

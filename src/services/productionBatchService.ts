@@ -2,12 +2,83 @@ import productionBatchRepository from '../repositories/productionBatchRepository
 import productionPlanRepository from '../repositories/productionPlanRepository';
 import qualityInspectionRepository from '../repositories/qualityInspectionRepository';
 import { ProductRepository } from '../repositories/productRepository';
-import { ProductionBatchCreateDto, ProductionBatchFinishDto } from '../models/ProductionBatch';
+import pool from '../config/database';
+import { ProducedBySuggestion, ProductionBatchCreateDto, ProductionBatchFinishDto } from '../models/ProductionBatch';
 
 const productRepository = new ProductRepository();
 
+type AuthUser = {
+  user_id: number;
+  username: string;
+  role_id: number;
+  location_id: number | null;
+  location_ids: number[];
+};
+
 export class ProductionBatchService {
-  async createBatch(batchData: ProductionBatchCreateDto): Promise<any> {
+  private async resolveProductionLocationId(user?: AuthUser): Promise<number> {
+    const userLocationIds = Array.isArray(user?.location_ids)
+      ? user!.location_ids.filter((id) => Number.isInteger(id) && id > 0)
+      : [];
+
+    if (userLocationIds.length > 0) {
+      const scopedResult = await pool.query(
+        `SELECT location_id
+         FROM location
+         WHERE is_active = true
+           AND location_type = 'CK_PRODUCTION'
+           AND location_id = ANY($1::int[])
+         ORDER BY location_id ASC
+         LIMIT 1`,
+        [userLocationIds]
+      );
+
+      if (scopedResult.rows.length > 0) {
+        return scopedResult.rows[0].location_id;
+      }
+    }
+
+    const fallbackResult = await pool.query(
+      `SELECT location_id
+       FROM location
+       WHERE is_active = true
+         AND location_type = 'CK_PRODUCTION'
+       ORDER BY location_id ASC
+       LIMIT 1`
+    );
+
+    if (fallbackResult.rows.length === 0) {
+      throw new Error('CK Production location not found');
+    }
+
+    return fallbackResult.rows[0].location_id;
+  }
+
+  private async validateProducedByUser(producedBy: number, locationId: number): Promise<void> {
+    const result = await pool.query(
+      `SELECT u.user_id
+       FROM "user" u
+       WHERE u.user_id = $1
+         AND u.is_active = true
+         AND (
+           u.location_id = $2
+           OR EXISTS (
+             SELECT 1
+             FROM user_location ul
+             WHERE ul.user_id = u.user_id
+               AND ul.location_id = $2
+           )
+         )
+       LIMIT 1`,
+      [producedBy, locationId]
+    );
+
+    if (result.rows.length === 0) {
+      throw new Error('Produced By user is invalid or not in corresponding production location');
+    }
+  }
+
+  async createBatch(batchData: ProductionBatchCreateDto, authUser?: AuthUser): Promise<any> {
     const plan = await productionPlanRepository.findById(batchData.plan_id);
     if (!plan) {
       throw new Error('Production plan not found');
@@ -25,6 +96,13 @@ export class ProductionBatchService {
     if (plan.product_id !== batchData.product_id) {
       throw new Error('Product does not match production plan');
     }
+
+    if (!batchData.produced_by || batchData.produced_by <= 0) {
+      throw new Error('Produced By is required');
+    }
+
+    const productionLocationId = await this.resolveProductionLocationId(authUser);
+    await this.validateProducedByUser(batchData.produced_by, productionLocationId);
 
     const batch = await productionBatchRepository.createEmptyBatch(batchData);
 
@@ -86,6 +164,47 @@ export class ProductionBatchService {
 
   async produceBatch(batchData: ProductionBatchCreateDto): Promise<any> {
     return this.createBatch(batchData);
+  }
+
+  async getNextBatchCodePreview(): Promise<string> {
+    return productionBatchRepository.getNextBatchCode();
+  }
+
+  async searchProducedBySuggestions(user: AuthUser | undefined, keyword?: string): Promise<ProducedBySuggestion[]> {
+    if (!user) {
+      throw new Error('Unauthorized');
+    }
+
+    const locationId = await this.resolveProductionLocationId(user);
+    const values: any[] = [locationId];
+    let where = `
+      u.is_active = true
+      AND (
+        u.location_id = $1
+        OR EXISTS (
+          SELECT 1
+          FROM user_location ul
+          WHERE ul.user_id = u.user_id
+            AND ul.location_id = $1
+        )
+      )
+    `;
+
+    if (keyword && keyword.trim()) {
+      values.push(`%${keyword.trim()}%`);
+      where += ` AND (u.username ILIKE $2 OR u.user_code ILIKE $2)`;
+    }
+
+    const result = await pool.query(
+      `SELECT u.user_id, u.user_code, u.username
+       FROM "user" u
+       WHERE ${where}
+       ORDER BY u.username ASC
+       LIMIT 20`,
+      values
+    );
+
+    return result.rows;
   }
 
   async getBatchesByPlanId(planId: number): Promise<any> {

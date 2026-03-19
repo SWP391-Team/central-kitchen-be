@@ -4,11 +4,20 @@ import reworkRecordRepository from '../repositories/reworkRecordRepository';
 import inventoryRepository from '../repositories/inventoryRepository';
 import pool from '../config/database';
 import { 
+  InspectedBySuggestion,
   QualityInspectionCreateDto, 
   QualityInspectionFinishDto, 
   QualityInspectionWithDetails 
 } from '../models/QualityInspection';
 import { ProductionBatch } from '../models/ProductionBatch';
+
+type AuthUser = {
+  user_id: number;
+  username: string;
+  role_id: number;
+  location_id: number | null;
+  location_ids: number[];
+};
 
 interface GetQualityInspectionsParams {
   search?: string;
@@ -20,7 +29,69 @@ interface GetQualityInspectionsParams {
 }
 
 export class QualityInspectionService {
-  async startInspection(data: QualityInspectionCreateDto): Promise<{
+  private async resolveQcLocationId(user?: AuthUser): Promise<number> {
+    const userLocationIds = Array.isArray(user?.location_ids)
+      ? user!.location_ids.filter((id) => Number.isInteger(id) && id > 0)
+      : [];
+
+    if (userLocationIds.length > 0) {
+      const scopedResult = await pool.query(
+        `SELECT location_id
+         FROM location
+         WHERE is_active = true
+           AND location_type = 'CK_PRODUCTION'
+           AND location_id = ANY($1::int[])
+         ORDER BY location_id ASC
+         LIMIT 1`,
+        [userLocationIds]
+      );
+
+      if (scopedResult.rows.length > 0) {
+        return scopedResult.rows[0].location_id;
+      }
+    }
+
+    const fallbackResult = await pool.query(
+      `SELECT location_id
+       FROM location
+       WHERE is_active = true
+         AND location_type = 'CK_PRODUCTION'
+       ORDER BY location_id ASC
+       LIMIT 1`
+    );
+
+    if (fallbackResult.rows.length === 0) {
+      throw new Error('QC location not found');
+    }
+
+    return fallbackResult.rows[0].location_id;
+  }
+
+  private async validateInspectedByUser(inspectedBy: number, locationId: number): Promise<void> {
+    const result = await pool.query(
+      `SELECT u.user_id
+       FROM "user" u
+       WHERE u.user_id = $1
+         AND u.is_active = true
+         AND (
+           u.location_id = $2
+           OR EXISTS (
+             SELECT 1
+             FROM user_location ul
+             WHERE ul.user_id = u.user_id
+               AND ul.location_id = $2
+           )
+         )
+       LIMIT 1`,
+      [inspectedBy, locationId]
+    );
+
+    if (result.rows.length === 0) {
+      throw new Error('Inspect By user is invalid or not in corresponding QC location');
+    }
+  }
+
+  async startInspection(data: QualityInspectionCreateDto, authUser?: AuthUser): Promise<{
     inspection: QualityInspectionWithDetails;
     batch: ProductionBatch;
   }> {
@@ -37,6 +108,12 @@ export class QualityInspectionService {
     if (hasActive) {
       throw new Error('There is already an active inspection for this batch');
     }
+
+    if (!data.inspect_by || data.inspect_by <= 0) {
+      throw new Error('Inspect By is required');
+    }
+
+    await this.validateInspectedByUser(data.inspect_by, await this.resolveQcLocationId(authUser));
 
     const client = await pool.connect();
     try {
@@ -118,7 +195,15 @@ export class QualityInspectionService {
 
       const newBatchStatus = data.inspection_result === 'Pass' ? 'qc_passed' : 'qc_failed';
 
-    
+      const finishedInspection = await qualityInspectionRepository.finishInspection(
+        inspectionId,
+        data,
+        inspectedBy,
+        newBatchStatus
+      );
+      if (!finishedInspection) {
+        throw new Error('Failed to update inspection result');
+      }
 
       await productionBatchRepository.updateStatusWithHistory(inspection.batch_id, newBatchStatus, {
         client,
@@ -263,6 +348,15 @@ export class QualityInspectionService {
     if (hasActive) {
       throw new Error('There is already an active inspection for this batch');
     }
+
+    if (!data.inspect_by) {
+      data.inspect_by = data.created_by;
+    }
+
+    await this.validateInspectedByUser(
+      data.inspect_by,
+      await this.resolveQcLocationId()
+    );
 
     const client = await pool.connect();
     try {
@@ -444,6 +538,43 @@ export class QualityInspectionService {
     return qualityInspectionRepository.findByBatchId(batchId);
   }
 
+  async searchInspectedBySuggestions(user: AuthUser | undefined, keyword?: string): Promise<InspectedBySuggestion[]> {
+    if (!user) {
+      throw new Error('Unauthorized');
+    }
+
+    const locationId = await this.resolveQcLocationId(user);
+    const values: any[] = [locationId];
+    let where = `
+      u.is_active = true
+      AND (
+        u.location_id = $1
+        OR EXISTS (
+          SELECT 1
+          FROM user_location ul
+          WHERE ul.user_id = u.user_id
+            AND ul.location_id = $1
+        )
+      )
+    `;
+
+    if (keyword && keyword.trim()) {
+      values.push(`%${keyword.trim()}%`);
+      where += ` AND (u.username ILIKE $2 OR u.user_code ILIKE $2)`;
+    }
+
+    const result = await pool.query(
+      `SELECT u.user_id, u.user_code, u.username
+       FROM "user" u
+       WHERE ${where}
+       ORDER BY u.username ASC
+       LIMIT 20`,
+      values
+    );
+
+    return result.rows;
+  }
+
   async sendReworkRequest(inspectionId: number, requestedBy?: number): Promise<ProductionBatch> {
     const inspection = await qualityInspectionRepository.findById(inspectionId);
     if (!inspection) {
@@ -452,6 +583,10 @@ export class QualityInspectionService {
 
     if (inspection.status !== 'Failed') {
       throw new Error('Only failed inspections can send rework request');
+    }
+
+    if (inspection.inspection_mode === 'sampling') {
+      throw new Error('Cannot send rework request for failed sampling inspections');
     }
 
     const batch = await productionBatchRepository.findById(inspection.batch_id);

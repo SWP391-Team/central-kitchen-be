@@ -162,10 +162,10 @@ export class ProductionBatchRepository {
     const query = `
       INSERT INTO production_batch (
         plan_id, batch_code, product_id, 
-        produced_qty, production_date, expired_date, 
+        produced_by, produced_qty, production_date, expired_date, 
         status, created_by
       )
-      VALUES ($1, $2, $3, NULL, NULL, NULL, 'producing', $4)
+      VALUES ($1, $2, $3, $4, NULL, NULL, NULL, 'producing', $5)
       RETURNING *
     `;
     
@@ -173,6 +173,7 @@ export class ProductionBatchRepository {
       batchData.plan_id,
       batchCode,
       batchData.product_id,
+      batchData.produced_by,
       batchData.created_by
     ];
     
@@ -238,11 +239,15 @@ export class ProductionBatchRepository {
         pp.plan_code,
         p.product_name,
         p.product_code,
-        u.username as created_by_username
+        un.unit_name,
+        u.username as created_by_username,
+        pu.username as produced_by_username
       FROM production_batch pb
       LEFT JOIN production_plan pp ON pb.plan_id = pp.plan_id
       LEFT JOIN product p ON pb.product_id = p.product_id
+      LEFT JOIN unit un ON p.unit_id = un.unit_id
       LEFT JOIN "user" u ON pb.created_by = u.user_id
+      LEFT JOIN "user" pu ON pb.produced_by = pu.user_id
       WHERE pb.plan_id = $1
       ORDER BY pb.created_at DESC
     `;
@@ -258,11 +263,15 @@ export class ProductionBatchRepository {
         pp.plan_code,
         p.product_name,
         p.product_code,
-        u.username as created_by_username
+        un.unit_name,
+        u.username as created_by_username,
+        pu.username as produced_by_username
       FROM production_batch pb
       LEFT JOIN production_plan pp ON pb.plan_id = pp.plan_id
       LEFT JOIN product p ON pb.product_id = p.product_id
+      LEFT JOIN unit un ON p.unit_id = un.unit_id
       LEFT JOIN "user" u ON pb.created_by = u.user_id
+      LEFT JOIN "user" pu ON pb.produced_by = pu.user_id
       WHERE pb.batch_id = $1
     `;
     
@@ -298,11 +307,15 @@ export class ProductionBatchRepository {
         pp.plan_code,
         p.product_name,
         p.product_code,
-        u.username as created_by_username
+        un.unit_name,
+        u.username as created_by_username,
+        pu.username as produced_by_username
       FROM production_batch pb
       LEFT JOIN production_plan pp ON pb.plan_id = pp.plan_id
       LEFT JOIN product p ON pb.product_id = p.product_id
+      LEFT JOIN unit un ON p.unit_id = un.unit_id
       LEFT JOIN "user" u ON pb.created_by = u.user_id
+      LEFT JOIN "user" pu ON pb.produced_by = pu.user_id
       ORDER BY pb.created_at DESC
     `;
     

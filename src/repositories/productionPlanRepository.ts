@@ -45,9 +45,11 @@ export class ProductionPlanRepository {
       SELECT 
         pp.*,
         p.product_code,
-        p.product_name
+        p.product_name,
+        un.unit_name
       FROM production_plan pp
       LEFT JOIN product p ON pp.product_id = p.product_id
+      LEFT JOIN unit un ON p.unit_id = un.unit_id
       ${whereClause}
       ORDER BY pp.${validSortBy} ${validSortOrder}
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -67,9 +69,11 @@ export class ProductionPlanRepository {
       SELECT 
         pp.*,
         p.product_code,
-        p.product_name
+        p.product_name,
+        un.unit_name
       FROM production_plan pp
       LEFT JOIN product p ON pp.product_id = p.product_id
+      LEFT JOIN unit un ON p.unit_id = un.unit_id
       WHERE pp.plan_id = $1
     `;
     const result = await pool.query(query, [planId]);

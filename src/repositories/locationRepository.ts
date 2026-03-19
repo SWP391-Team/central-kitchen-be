@@ -2,6 +2,90 @@ import pool from '../config/database';
 import { Location, LocationCreateDto, LocationUpdateDto } from '../models/Location';
 
 export class LocationRepository {
+  async getDeactivationBlockers(locationId: number): Promise<string[]> {
+    const query = `
+      SELECT
+        (
+          SELECT COALESCE(SUM(bi.qty_on_hand), 0)::int
+          FROM batch_inventory bi
+          WHERE bi.location_id = $1
+            AND bi.qty_on_hand > 0
+        ) AS inventory_qty,
+        (
+          SELECT COUNT(*)::int
+          FROM supply_order so
+          WHERE so.location_id = $1
+            AND so.status IN ('Draft', 'Pending', 'Approved', 'Partly Delivered')
+        ) AS open_supply_orders,
+        (
+          SELECT COUNT(*)::int
+          FROM batch_transfer bt
+          WHERE (bt.from_location_id = $1 OR bt.to_location_id = $1)
+            AND bt.status = 'Delivering'
+        ) AS delivering_transfers,
+        (
+          SELECT COUNT(*)::int
+          FROM (
+            SELECT bt.batch_transfer_id
+            FROM batch_transfer bt
+            LEFT JOIN warehouse_receive wr ON wr.batch_transfer_id = bt.batch_transfer_id
+            WHERE (bt.from_location_id = $1 OR bt.to_location_id = $1)
+            GROUP BY bt.batch_transfer_id, bt.transfer_qty
+            HAVING COALESCE(SUM(wr.received_qty), 0) < bt.transfer_qty
+          ) pending_receive
+        ) AS unreceived_transfers,
+        (
+          SELECT (
+            COALESCE((
+              SELECT COUNT(*)::int
+              FROM user_location ul
+              INNER JOIN "user" u ON u.user_id = ul.user_id
+              WHERE ul.location_id = $1
+                AND u.is_active = true
+            ), 0)
+            +
+            COALESCE((
+              SELECT COUNT(*)::int
+              FROM "user" u
+              WHERE u.location_id = $1
+                AND u.is_active = true
+            ), 0)
+          )::int
+        ) AS assigned_users
+    `;
+
+    const result = await pool.query(query, [locationId]);
+    const row = result.rows[0];
+
+    if (!row) {
+      return [];
+    }
+
+    const blockers: string[] = [];
+
+    if (row.inventory_qty > 0) {
+      blockers.push('inventory is still on hand');
+    }
+
+    if (row.open_supply_orders > 0) {
+      blockers.push('there are related supply orders in Draft/Pending/Approved/Partly Delivered status');
+    }
+
+    if (row.delivering_transfers > 0) {
+      blockers.push('there are related batch transfers in Delivering status');
+    }
+
+    if (row.unreceived_transfers > 0 && row.delivering_transfers === 0) {
+      blockers.push('there are transfers not fully received yet (warehouse receive pending)');
+    }
+
+    if (row.assigned_users > 0) {
+      blockers.push('there are active users still assigned to this location');
+    }
+
+    return blockers;
+  }
+
   async findAll(params?: { search?: string; is_active?: boolean; location_type?: string }): Promise<Location[]> {
     let query = 'SELECT * FROM location WHERE 1=1';
     const values: any[] = [];

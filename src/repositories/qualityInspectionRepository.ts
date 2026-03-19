@@ -68,13 +68,13 @@ export class QualityInspectionRepository {
     const query = `
       INSERT INTO quality_inspection (
         batch_id, quality_inspection_code, inspection_no,
-        status, created_by, created_at
+        status, inspected_by, created_by, created_at
       )
-      VALUES ($1, $2, $3, 'Inspecting', $4, CURRENT_TIMESTAMP)
+      VALUES ($1, $2, $3, 'Inspecting', $4, $5, CURRENT_TIMESTAMP)
       RETURNING *
     `;
     
-    const values = [data.batch_id, qiCode, inspectionNo, data.created_by];
+    const values = [data.batch_id, qiCode, inspectionNo, data.inspect_by || null, data.created_by];
     const result = await pool.query(query, values);
     return result.rows[0];
   }
@@ -128,6 +128,7 @@ export class QualityInspectionRepository {
         pb.status as batch_status,
         p.product_name,
         p.product_code,
+        un.unit_name,
         u1.username as inspected_by_username,
         u2.username as created_by_username,
         (
@@ -138,8 +139,9 @@ export class QualityInspectionRepository {
       FROM quality_inspection qi
       LEFT JOIN production_batch pb ON qi.batch_id = pb.batch_id
       LEFT JOIN product p ON pb.product_id = p.product_id
-      LEFT JOIN "user" u1 ON qi.inspected_by::TEXT = u1.user_id::TEXT
-      LEFT JOIN "user" u2 ON qi.created_by::TEXT = u2.user_id::TEXT
+      LEFT JOIN unit un ON p.unit_id = un.unit_id
+      LEFT JOIN "user" u1 ON qi.inspected_by = u1.user_id
+      LEFT JOIN "user" u2 ON qi.created_by = u2.user_id
       WHERE qi.quality_inspection_id = $1
     `;
     
@@ -156,6 +158,7 @@ export class QualityInspectionRepository {
         pb.status as batch_status,
         p.product_name,
         p.product_code,
+        un.unit_name,
         u1.username as inspected_by_username,
         u2.username as created_by_username,
         (
@@ -166,8 +169,9 @@ export class QualityInspectionRepository {
       FROM quality_inspection qi
       LEFT JOIN production_batch pb ON qi.batch_id = pb.batch_id
       LEFT JOIN product p ON pb.product_id = p.product_id
-      LEFT JOIN "user" u1 ON qi.inspected_by::TEXT = u1.user_id::TEXT
-      LEFT JOIN "user" u2 ON qi.created_by::TEXT = u2.user_id::TEXT
+      LEFT JOIN unit un ON p.unit_id = un.unit_id
+      LEFT JOIN "user" u1 ON qi.inspected_by = u1.user_id
+      LEFT JOIN "user" u2 ON qi.created_by = u2.user_id
       WHERE qi.batch_id = $1
       ORDER BY qi.inspection_no DESC
     `;
@@ -235,6 +239,7 @@ export class QualityInspectionRepository {
         pb.status as batch_status,
         p.product_name,
         p.product_code,
+        un.unit_name,
         u1.username as inspected_by_username,
         u2.username as created_by_username,
         (
@@ -245,8 +250,9 @@ export class QualityInspectionRepository {
       FROM quality_inspection qi
       LEFT JOIN production_batch pb ON qi.batch_id = pb.batch_id
       LEFT JOIN product p ON pb.product_id = p.product_id
-      LEFT JOIN "user" u1 ON qi.inspected_by::TEXT = u1.user_id::TEXT
-      LEFT JOIN "user" u2 ON qi.created_by::TEXT = u2.user_id::TEXT
+      LEFT JOIN unit un ON p.unit_id = un.unit_id
+      LEFT JOIN "user" u1 ON qi.inspected_by = u1.user_id
+      LEFT JOIN "user" u2 ON qi.created_by = u2.user_id
       ${whereClause}
       ORDER BY qi.${sortBy} ${sortOrder.toUpperCase()}
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}

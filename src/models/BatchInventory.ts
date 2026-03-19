@@ -14,4 +14,6 @@ export interface BatchInventoryWithDetails extends BatchInventory {
   product_name?: string;
   product_code?: string;
   batch_code?: string;
+  production_date?: string | null;
+  expired_date?: string | null;
 }

@@ -9,6 +9,7 @@ router.use(jwtMiddleware);
 
 router.post('/start', requireRole(1, 2), qualityInspectionController.startInspection);
 router.post('/reinspection', requireRole(1, 2), qualityInspectionController.reinspection);
+router.get('/inspected-by-suggestions', requireRole(1, 2), qualityInspectionController.searchInspectedBySuggestions);
 router.put('/:id/finish', requireRole(1, 2), qualityInspectionController.finishInspection);
 router.put('/:id/undo', requireRole(1, 2), qualityInspectionController.undoInspection);
 router.put('/:id/send-rework-request', requireRole(1, 2), qualityInspectionController.sendReworkRequest);

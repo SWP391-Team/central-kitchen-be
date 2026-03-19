@@ -209,6 +209,11 @@ export class LocationController {
           success: false,
           message: error.message,
         });
+      } else if (error.message?.startsWith('Cannot deactivate location:')) {
+        res.status(409).json({
+          success: false,
+          message: error.message,
+        });
       } else {
         res.status(500).json({
           success: false,

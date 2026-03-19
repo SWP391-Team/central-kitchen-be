@@ -2,6 +2,20 @@ import pool from '../config/database';
 import { User, UserCreateDto, UserUpdateDto } from '../models/User';
 
 export class UserRepository {
+  private readonly DEACTIVATION_BLOCKING_BATCH_STATUSES = [
+    'producing',
+    'produced',
+    'waiting_qc',
+    'under_qc',
+    'qc_passed',
+    'qc_failed',
+    'rework_required',
+    'reworking',
+    'reworked',
+    'rework_failed',
+    'delivering',
+  ];
+
   private normalizeLocationIds(locationIds?: number[] | null): number[] {
     if (!locationIds || locationIds.length === 0) {
       return [];
@@ -111,6 +125,60 @@ export class UserRepository {
 
     const users = await this.withLocations([result.rows[0]]);
     return users[0] || null;
+  }
+
+  async getDeactivationBlockingAssignments(userId: number): Promise<{
+    productionBatchCodes: string[];
+    qualityInspectionCodes: string[];
+    reworkCodes: string[];
+  }> {
+    const [productionResult, inspectionResult, reworkResult] = await Promise.all([
+      pool.query(
+        `SELECT batch_code
+         FROM production_batch
+         WHERE produced_by = $1
+           AND status = ANY($2::text[])
+         ORDER BY created_at DESC`,
+        [userId, this.DEACTIVATION_BLOCKING_BATCH_STATUSES]
+      ),
+      pool.query(
+        `SELECT quality_inspection_code
+         FROM quality_inspection
+         WHERE inspected_by = $1
+           AND status = 'Inspecting'
+         ORDER BY created_at DESC`,
+        [userId]
+      ),
+      pool.query(
+        `SELECT rework_code
+         FROM rework_record
+         WHERE rework_by = $1
+           AND status = 'Reworking'
+         ORDER BY created_at DESC`,
+        [userId]
+      ),
+    ]);
+
+    return {
+      productionBatchCodes: productionResult.rows.map((row) => row.batch_code),
+      qualityInspectionCodes: inspectionResult.rows.map((row) => row.quality_inspection_code),
+      reworkCodes: reworkResult.rows.map((row) => row.rework_code),
+    };
+  }
+
+  async generateNextUserCode(): Promise<string> {
+    const result = await pool.query(
+      `SELECT COALESCE(MAX((SUBSTRING(user_code FROM '^USR-(\\d+)$'))::bigint), 0) AS max_code_number
+       FROM "user"
+       WHERE user_code ~ '^USR-\\d+$'`
+    );
+
+    const maxCodeRaw = result.rows[0]?.max_code_number;
+    const maxCodeNumber = maxCodeRaw !== undefined && maxCodeRaw !== null ? BigInt(maxCodeRaw) : 0n;
+    const nextCodeNumber = (maxCodeNumber + 1n).toString();
+    const paddedCodeNumber = nextCodeNumber.length < 4 ? nextCodeNumber.padStart(4, '0') : nextCodeNumber;
+
+    return `USR-${paddedCodeNumber}`;
   }
 
   async create(userData: UserCreateDto): Promise<User> {

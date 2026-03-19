@@ -8,6 +8,8 @@ const router = Router();
 router.use(jwtMiddleware);
 
 router.post('/', requireRole(1, 2), productionBatchController.createBatch);
+router.get('/next-code', requireRole(1, 2), productionBatchController.getNextBatchCode);
+router.get('/produced-by-suggestions', requireRole(1, 2), productionBatchController.searchProducedBySuggestions);
 router.put('/:id/finish', requireRole(1, 2), productionBatchController.finishProduction);
 router.put('/:id/cancel', requireRole(1, 2), productionBatchController.cancelBatch);
 router.put('/:id/send-to-qc', requireRole(1, 2), productionBatchController.sendToQC);

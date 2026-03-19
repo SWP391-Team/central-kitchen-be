@@ -59,13 +59,21 @@ export class ReworkRecordRepository {
     const query = `
       INSERT INTO rework_record (
         rework_code, rework_no, batch_id, quality_inspection_id,
-        rework_qty, status, created_by, created_at
+        rework_qty, status, rework_by, created_by, created_at
       )
-      VALUES ($1, $2, $3, $4, $5, 'Reworking', $6, CURRENT_TIMESTAMP)
+      VALUES ($1, $2, $3, $4, $5, 'Reworking', $6, $7, CURRENT_TIMESTAMP)
       RETURNING *
     `;
     
-    const values = [reworkCode, reworkNo, data.batch_id, data.quality_inspection_id, reworkQty, data.created_by];
+    const values = [
+      reworkCode,
+      reworkNo,
+      data.batch_id,
+      data.quality_inspection_id,
+      reworkQty,
+      data.rework_by || null,
+      data.created_by
+    ];
     const result = await pool.query(query, values);
     return result.rows[0];
   }
@@ -112,13 +120,15 @@ export class ReworkRecordRepository {
         pb.batch_code,
         p.product_name,
         p.product_code,
+        un.unit_name,
         u1.username as rework_by_username,
         u2.username as created_by_username
       FROM rework_record rr
       LEFT JOIN production_batch pb ON rr.batch_id = pb.batch_id
       LEFT JOIN product p ON pb.product_id = p.product_id
-      LEFT JOIN "user" u1 ON rr.rework_by::TEXT = u1.user_id::TEXT
-      LEFT JOIN "user" u2 ON rr.created_by::TEXT = u2.user_id::TEXT
+      LEFT JOIN unit un ON p.unit_id = un.unit_id
+      LEFT JOIN "user" u1 ON rr.rework_by = u1.user_id
+      LEFT JOIN "user" u2 ON rr.created_by = u2.user_id
       WHERE rr.rework_id = $1
     `;
     
@@ -133,11 +143,13 @@ export class ReworkRecordRepository {
         pb.batch_code,
         p.product_name,
         p.product_code,
+        un.unit_name,
         u1.username as rework_by_username,
         u2.username as created_by_username
       FROM rework_record rr
       LEFT JOIN production_batch pb ON rr.batch_id = pb.batch_id
       LEFT JOIN product p ON pb.product_id = p.product_id
+      LEFT JOIN unit un ON p.unit_id = un.unit_id
       LEFT JOIN "user" u1 ON rr.rework_by = u1.user_id
       LEFT JOIN "user" u2 ON rr.created_by = u2.user_id
       WHERE rr.batch_id = $1
@@ -145,6 +157,40 @@ export class ReworkRecordRepository {
     `;
     
     const result = await pool.query(query, [batchId]);
+    return result.rows;
+  }
+
+  async findByBatchIds(batchIds: number[]): Promise<ReworkRecordWithDetails[]> {
+    if (batchIds.length === 0) {
+      return [];
+    }
+
+    const query = `
+      SELECT
+        rr.*,
+        pb.batch_code,
+        pb.status as batch_status,
+        p.product_name,
+        p.product_code,
+        un.unit_name,
+        u1.username as rework_by_username,
+        u2.username as created_by_username,
+        (
+          SELECT MAX(rework_no)
+          FROM rework_record
+          WHERE batch_id = rr.batch_id
+        ) as max_rework_no
+      FROM rework_record rr
+      LEFT JOIN production_batch pb ON rr.batch_id = pb.batch_id
+      LEFT JOIN product p ON pb.product_id = p.product_id
+      LEFT JOIN unit un ON p.unit_id = un.unit_id
+      LEFT JOIN "user" u1 ON rr.rework_by = u1.user_id
+      LEFT JOIN "user" u2 ON rr.created_by = u2.user_id
+      WHERE rr.batch_id = ANY($1::int[])
+      ORDER BY rr.batch_id ASC, rr.rework_no DESC
+    `;
+
+    const result = await pool.query(query, [batchIds]);
     return result.rows;
   }
 
@@ -156,6 +202,7 @@ export class ReworkRecordRepository {
         pb.status as batch_status,
         p.product_name,
         p.product_code,
+        un.unit_name,
         u1.username as rework_by_username,
         u2.username as created_by_username,
         (
@@ -166,8 +213,9 @@ export class ReworkRecordRepository {
       FROM rework_record rr
       LEFT JOIN production_batch pb ON rr.batch_id = pb.batch_id
       LEFT JOIN product p ON pb.product_id = p.product_id
-      LEFT JOIN "user" u1 ON rr.rework_by::TEXT = u1.user_id::TEXT
-      LEFT JOIN "user" u2 ON rr.created_by::TEXT = u2.user_id::TEXT
+      LEFT JOIN unit un ON p.unit_id = un.unit_id
+      LEFT JOIN "user" u1 ON rr.rework_by = u1.user_id
+      LEFT JOIN "user" u2 ON rr.created_by = u2.user_id
       ORDER BY rr.created_at DESC
     `;
     
@@ -187,13 +235,15 @@ export class ReworkRecordRepository {
         pb.batch_code,
         p.product_name,
         p.product_code,
+        un.unit_name,
         u1.username as rework_by_username,
         u2.username as created_by_username
       FROM rework_record rr
       LEFT JOIN production_batch pb ON rr.batch_id = pb.batch_id
       LEFT JOIN product p ON pb.product_id = p.product_id
-      LEFT JOIN "user" u1 ON rr.rework_by::TEXT = u1.user_id::TEXT
-      LEFT JOIN "user" u2 ON rr.created_by::TEXT = u2.user_id::TEXT
+      LEFT JOIN unit un ON p.unit_id = un.unit_id
+      LEFT JOIN "user" u1 ON rr.rework_by = u1.user_id
+      LEFT JOIN "user" u2 ON rr.created_by = u2.user_id
       WHERE rr.batch_id = $1
       ORDER BY rr.rework_no DESC
       LIMIT 1
@@ -210,11 +260,13 @@ export class ReworkRecordRepository {
         pb.batch_code,
         p.product_name,
         p.product_code,
+        un.unit_name,
         u1.username as rework_by_username,
         u2.username as created_by_username
       FROM rework_record rr
       LEFT JOIN production_batch pb ON rr.batch_id = pb.batch_id
       LEFT JOIN product p ON pb.product_id = p.product_id
+      LEFT JOIN unit un ON p.unit_id = un.unit_id
       LEFT JOIN "user" u1 ON rr.rework_by::TEXT = u1.user_id::TEXT
       LEFT JOIN "user" u2 ON rr.created_by::TEXT = u2.user_id::TEXT
       WHERE rr.batch_id = $1 

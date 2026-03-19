@@ -3,7 +3,7 @@ import warehouseReceiveRepository from '../repositories/warehouseReceiveReposito
 import batchTransferRepository from '../repositories/batchTransferRepository';
 import productionBatchRepository from '../repositories/productionBatchRepository';
 import inventoryRepository from '../repositories/inventoryRepository';
-import { WarehouseReceiveWithDetails } from '../models/WarehouseReceive';
+import { ReceivedBySuggestion, WarehouseReceiveWithDetails } from '../models/WarehouseReceive';
 
 export class WarehouseReceiveService {
   private toId(value: unknown): number {
@@ -68,6 +68,30 @@ export class WarehouseReceiveService {
     return this.normalizeLocationIds([row.location_id]);
   }
 
+  private async validateReceivedByUser(receivedBy: number, locationId: number): Promise<void> {
+    const result = await pool.query(
+      `SELECT u.user_id
+       FROM "user" u
+       WHERE u.user_id = $1
+         AND u.is_active = true
+         AND (
+           u.location_id = $2
+           OR EXISTS (
+             SELECT 1
+             FROM user_location ul
+             WHERE ul.user_id = u.user_id
+               AND ul.location_id = $2
+           )
+         )
+       LIMIT 1`,
+      [receivedBy, locationId]
+    );
+
+    if (result.rows.length === 0) {
+      throw new Error('Received By user is invalid or not in corresponding location');
+    }
+  }
+
   async createWarehouseReceive(data: {
     batch_transfer_id: number;
     received_qty: number;
@@ -76,6 +100,7 @@ export class WarehouseReceiveService {
     created_by: number;
     user_role_id?: number;
     user_location_ids?: number[];
+    requester_user_id?: number;
   }): Promise<WarehouseReceiveWithDetails> {
     const client = await pool.connect();
     try {
@@ -87,9 +112,11 @@ export class WarehouseReceiveService {
       );
       if (!transfer) throw new Error('Batch transfer not found');
 
+      await this.validateReceivedByUser(data.received_by, transfer.to_location_id);
+
       if (data.user_role_id === 3) {
         const allowedLocations = await this.resolveUserLocationScope(
-          data.received_by,
+          data.requester_user_id || data.created_by,
           data.user_location_ids
         );
         const toLocationId = this.toId(transfer.to_location_id);
@@ -221,6 +248,71 @@ export class WarehouseReceiveService {
     locationIds?: number[]
   ): Promise<WarehouseReceiveWithDetails[]> {
     return warehouseReceiveRepository.findByBatchTransferId(transferId, locationIds);
+  }
+
+  async getWarehouseReceiveById(
+    receiveId: number,
+    locationIds?: number[]
+  ): Promise<WarehouseReceiveWithDetails | null> {
+    return warehouseReceiveRepository.findById(receiveId, locationIds);
+  }
+
+  async searchReceivedBySuggestions(params: {
+    batch_transfer_id: number;
+    requester_user_id: number;
+    requester_role_id?: number;
+    requester_location_ids?: number[];
+    keyword?: string;
+  }): Promise<ReceivedBySuggestion[]> {
+    const transfer = await batchTransferRepository.findById(params.batch_transfer_id);
+    if (!transfer) {
+      throw new Error('Batch transfer not found');
+    }
+
+    const toLocationId = this.toId(transfer.to_location_id);
+    if (!toLocationId) {
+      throw new Error('Invalid destination location for this transfer');
+    }
+
+    if (params.requester_role_id === 3) {
+      const allowedLocations = await this.resolveUserLocationScope(
+        params.requester_user_id,
+        params.requester_location_ids
+      );
+      if (!allowedLocations.includes(toLocationId)) {
+        throw new Error('Store Staff can only access users in assigned store locations');
+      }
+    }
+
+    const values: any[] = [toLocationId];
+    let where = `
+      u.is_active = true
+      AND (
+        u.location_id = $1
+        OR EXISTS (
+          SELECT 1
+          FROM user_location ul
+          WHERE ul.user_id = u.user_id
+            AND ul.location_id = $1
+        )
+      )
+    `;
+
+    if (params.keyword && params.keyword.trim()) {
+      values.push(`%${params.keyword.trim()}%`);
+      where += ` AND (u.username ILIKE $2 OR u.user_code ILIKE $2)`;
+    }
+
+    const result = await pool.query(
+      `SELECT u.user_id, u.user_code, u.username
+       FROM "user" u
+       WHERE ${where}
+       ORDER BY u.username ASC
+       LIMIT 20`,
+      values
+    );
+
+    return result.rows;
   }
 }
 

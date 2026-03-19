@@ -17,9 +17,9 @@ export class ProductionBatchController {
         return;
       }
 
-      const { plan_id, product_id } = req.body;
+      const { plan_id, product_id, produced_by } = req.body;
 
-      if (!plan_id || !product_id) {
+      if (!plan_id || !product_id || !produced_by) {
         res.status(400).json({
           success: false,
           message: 'Missing required fields',
@@ -30,8 +30,9 @@ export class ProductionBatchController {
       const result = await productionBatchService.createBatch({
         plan_id,
         product_id,
+        produced_by,
         created_by: user.user_id,
-      });
+      }, user);
 
       res.status(201).json({
         success: true,
@@ -100,6 +101,42 @@ export class ProductionBatchController {
 
   produceBatch = async (req: AuthRequest, res: Response): Promise<void> => {
     return this.createBatch(req, res);
+  };
+
+  getNextBatchCode = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const user = req.user;
+      if (!user) {
+        res.status(401).json({
+          success: false,
+          message: 'Unauthorized',
+        });
+        return;
+      }
+
+      const code = await productionBatchService.getNextBatchCodePreview();
+      res.json({
+        success: true,
+        data: { batch_code: code },
+      });
+    } catch (error: any) {
+      console.error('Get next batch code error:', error);
+      res.status(400).json({
+        success: false,
+        message: error.message || 'Failed to get next batch code',
+      });
+    }
+  };
+
+  searchProducedBySuggestions = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const keyword = typeof req.query.q === 'string' ? req.query.q : undefined;
+      const data = await productionBatchService.searchProducedBySuggestions(req.user, keyword);
+      res.json({ success: true, data });
+    } catch (error: any) {
+      const status = error.message?.includes('Unauthorized') ? 401 : 400;
+      res.status(status).json({ success: false, message: error.message });
+    }
   };
 
   getBatchesByPlanId = async (req: AuthRequest, res: Response): Promise<void> => {

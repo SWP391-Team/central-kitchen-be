@@ -21,5 +21,6 @@ export interface InventoryTransactionWithDetails extends InventoryTransaction {
   location_name?: string;
   product_name?: string;
   product_code?: string;
+  unit_name?: string | null;
   batch_code?: string;
 }

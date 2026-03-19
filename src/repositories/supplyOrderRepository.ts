@@ -215,7 +215,7 @@ export class SupplyOrderRepository {
          soi.*,
          p.product_name,
          p.product_code,
-         p.unit,
+        u.unit_name AS unit,
          COALESCE((
            SELECT SUM(bt.transfer_qty)
            FROM batch_transfer bt
@@ -231,6 +231,7 @@ export class SupplyOrderRepository {
          )::int AS remaining_qty
        FROM supply_order_item soi
        LEFT JOIN product p ON soi.product_id = p.product_id
+         LEFT JOIN unit u ON p.unit_id = u.unit_id
        WHERE soi.supply_order_id = $1
        ORDER BY soi.supply_order_item_id ASC`,
       [orderId]
@@ -401,15 +402,18 @@ export class SupplyOrderRepository {
          bi.product_id,
          p.product_code,
          p.product_name,
-         p.unit,
+         u.unit_name AS unit,
          bi.batch_id,
          pb.batch_code,
+         pb.production_date,
+         pb.expired_date,
          bi.qty_on_hand,
          bi.qty_available,
          bi.updated_at
        FROM batch_inventory bi
        INNER JOIN location l ON bi.location_id = l.location_id
        INNER JOIN product p ON bi.product_id = p.product_id
+       LEFT JOIN unit u ON p.unit_id = u.unit_id
        LEFT JOIN production_batch pb ON bi.batch_id = pb.batch_id
        WHERE l.location_type = 'CK_WAREHOUSE'
          AND l.is_active = true

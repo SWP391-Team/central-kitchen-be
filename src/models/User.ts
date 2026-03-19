@@ -13,7 +13,7 @@ export interface User {
 }
 
 export interface UserCreateDto {
-  user_code: string;
+  user_code?: string;
   username: string;
   password: string;
   role_id: number;

@@ -8,12 +8,14 @@ const WITH_DETAILS_SELECT = `
     pb.batch_code,
     p.product_name,
     p.product_code,
+    un.unit_name,
     l.location_name,
     u1.username AS received_by_username,
     u2.username AS created_by_username
   FROM warehouse_receive wr
   LEFT JOIN production_batch pb ON wr.batch_id     = pb.batch_id
   LEFT JOIN product          p  ON pb.product_id   = p.product_id
+  LEFT JOIN unit             un ON p.unit_id       = un.unit_id
   LEFT JOIN location         l  ON wr.location_id  = l.location_id
   LEFT JOIN "user"           u1 ON wr.received_by  = u1.user_id
   LEFT JOIN "user"           u2 ON wr.created_by   = u2.user_id
@@ -87,6 +89,23 @@ export class WarehouseReceiveRepository {
       params
     );
     return result.rows;
+  }
+
+  async findById(
+    receiveId: number,
+    locationIds?: number[]
+  ): Promise<WarehouseReceiveWithDetails | null> {
+    const params: any[] = [receiveId];
+    const locationClause =
+      locationIds && locationIds.length > 0
+        ? (params.push(locationIds), ` AND wr.location_id = ANY($${params.length}::int[])`)
+        : '';
+
+    const result = await pool.query(
+      `${WITH_DETAILS_SELECT} WHERE wr.warehouse_receive_id = $1${locationClause}`,
+      params
+    );
+    return result.rows[0] || null;
   }
 
   async getSumReceivedQtyByTransferId(

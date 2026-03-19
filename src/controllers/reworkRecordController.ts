@@ -4,14 +4,22 @@ import reworkRecordService from '../services/reworkRecordService';
 export class ReworkRecordController {
   async startRework(req: Request, res: Response) {
     try {
-      const { batch_id, quality_inspection_id } = req.body;
+      const { batch_id, quality_inspection_id, rework_by } = req.body;
       const created_by = (req as any).user.user_id;
+
+      if (!batch_id || !quality_inspection_id || !rework_by) {
+        return res.status(400).json({
+          success: false,
+          message: 'batch_id, quality_inspection_id and rework_by are required'
+        });
+      }
 
       const result = await reworkRecordService.startRework({
         batch_id,
         quality_inspection_id,
+        rework_by: parseInt(rework_by),
         created_by
-      });
+      }, (req as any).user);
 
       res.status(201).json({
         success: true,
@@ -136,6 +144,54 @@ export class ReworkRecordController {
       res.status(500).json({
         success: false,
         message: error.message || 'Failed to get rework records'
+      });
+    }
+  }
+
+  async getReworksByBatchIds(req: Request, res: Response) {
+    try {
+      const rawIds = typeof req.query.ids === 'string' ? req.query.ids : '';
+      const batchIds = rawIds
+        .split(',')
+        .map((id) => parseInt(id.trim(), 10))
+        .filter((id) => Number.isInteger(id) && id > 0);
+
+      if (batchIds.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'ids query is required (comma-separated batch IDs)'
+        });
+      }
+
+      const result = await reworkRecordService.getReworksByBatchIds(batchIds);
+
+      res.status(200).json({
+        success: true,
+        data: result
+      });
+    } catch (error: any) {
+      console.error('Error getting rework records by batch IDs:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Failed to get rework records'
+      });
+    }
+  }
+
+  async searchReworkBySuggestions(req: Request, res: Response) {
+    try {
+      const keyword = typeof req.query.q === 'string' ? req.query.q : undefined;
+      const result = await reworkRecordService.searchReworkBySuggestions((req as any).user, keyword);
+
+      res.status(200).json({
+        success: true,
+        data: result
+      });
+    } catch (error: any) {
+      const status = error.message?.includes('Unauthorized') ? 401 : 400;
+      res.status(status).json({
+        success: false,
+        message: error.message || 'Failed to search rework by suggestions'
       });
     }
   }

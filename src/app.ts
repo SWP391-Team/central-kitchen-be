@@ -15,6 +15,7 @@ import warehouseReceiveRouter from './routers/warehouseReceiveRouter';
 import inventoryRouter from './routers/inventoryRouter';
 import supplyOrderRouter from './routers/supplyOrderRouter';
 import auditLogRouter from './routers/auditLogRouter';
+import unitRouter from './routers/unitRouter';
 import { auditLogMiddleware } from './middlewares/auditLogMiddleware';
 
 dotenv.config();
@@ -38,6 +39,7 @@ app.use('/api/warehouse-receives', warehouseReceiveRouter);
 app.use('/api/inventory', inventoryRouter);
 app.use('/api/supply-orders', supplyOrderRouter);
 app.use('/api/audit-logs', auditLogRouter);
+app.use('/api/units', unitRouter);
 
 app.get('/api/health', async (req, res) => {
   try {

@@ -72,10 +72,10 @@ export class UserController {
 
       const userData: UserCreateDto = req.body;
 
-      if (!userData.user_code || !userData.username || !userData.password || !userData.role_id) {
+      if (!userData.username || !userData.password || !userData.role_id) {
         res.status(400).json({
           success: false,
-          message: 'User code, username, password, and role_id are required',
+          message: 'Username, password, and role_id are required',
         });
         return;
       }
@@ -92,16 +92,6 @@ export class UserController {
           res.status(409).json({
             success: false,
             message: 'Username already exists',
-          });
-        } else if (error.message === 'User code already exists') {
-          res.status(409).json({
-            success: false,
-            message: 'User code already exists',
-          });
-        } else if (error.message.includes('Invalid user_code format')) {
-          res.status(400).json({
-            success: false,
-            message: error.message,
           });
         } else {
           console.error('Create user error:', error);
@@ -153,6 +143,11 @@ export class UserController {
           res.status(409).json({
             success: false,
             message: 'Username already exists',
+          });
+        } else if (error.message.startsWith('USER_DEACTIVATION_BLOCKED:')) {
+          res.status(409).json({
+            success: false,
+            message: error.message.replace('USER_DEACTIVATION_BLOCKED:', ''),
           });
         } else if (error.message === 'Cannot modify user_code after creation') {
           res.status(403).json({

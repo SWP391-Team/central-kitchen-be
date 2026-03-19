@@ -12,6 +12,12 @@ router.get(
   requireRole(1, 2, 3),
   warehouseReceiveController.getByTransferId
 );
+router.get(
+  '/received-by-suggestions',
+  requireRole(1, 2, 3),
+  warehouseReceiveController.searchReceivedBySuggestions
+);
+router.get('/:id', requireRole(1, 2, 3), warehouseReceiveController.getById);
 router.post('/', requireRole(1, 2, 3), warehouseReceiveController.create);
 
 export default router;

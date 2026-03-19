@@ -363,7 +363,17 @@ export class SupplyOrderService {
 
       const approvalMap = new Map<number, number>();
       for (const item of payload.items) {
-        approvalMap.set(item.supply_order_item_id, item.approved_qty);
+        const payloadItemId = this.toId((item as any).supply_order_item_id);
+        if (!payloadItemId) {
+          throw new Error('Invalid supply_order_item_id in approval payload');
+        }
+
+        const approvedQty = Number((item as any).approved_qty);
+        if (!Number.isFinite(approvedQty)) {
+          throw new Error('approved_qty must be a number');
+        }
+
+        approvalMap.set(payloadItemId, approvedQty);
       }
 
       let hasApproved = false;

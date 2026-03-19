@@ -14,19 +14,20 @@ interface AuthRequest extends Request {
 export class QualityInspectionController {
   async startInspection(req: AuthRequest, res: Response) {
     try {
-      const { batch_id } = req.body;
+      const { batch_id, inspect_by } = req.body;
 
-      if (!batch_id) {
+      if (!batch_id || !inspect_by) {
         return res.status(400).json({
           success: false,
-          message: 'Batch ID is required'
+          message: 'Batch ID and Inspect By are required'
         });
       }
 
       const result = await qualityInspectionService.startInspection({
         batch_id,
+        inspect_by: parseInt(inspect_by),
         created_by: req.user!.user_id
-      });
+      }, req.user);
 
       res.status(201).json({
         success: true,
@@ -94,6 +95,7 @@ export class QualityInspectionController {
 
       const result = await qualityInspectionService.reinspection({
         batch_id,
+        inspect_by: req.user!.user_id,
         created_by: req.user!.user_id
       });
 
@@ -207,6 +209,17 @@ export class QualityInspectionController {
         success: false,
         message: error.message || 'Failed to get inspections'
       });
+    }
+  }
+
+  async searchInspectedBySuggestions(req: AuthRequest, res: Response) {
+    try {
+      const keyword = typeof req.query.q === 'string' ? req.query.q : undefined;
+      const data = await qualityInspectionService.searchInspectedBySuggestions(req.user, keyword);
+      res.status(200).json({ success: true, data });
+    } catch (error: any) {
+      const status = error.message?.includes('Unauthorized') ? 401 : 400;
+      res.status(status).json({ success: false, message: error.message });
     }
   }
 

@@ -18,7 +18,14 @@ export interface QualityInspection {
 
 export interface QualityInspectionCreateDto {
   batch_id: number;
+  inspect_by?: number;
   created_by: number;
+}
+
+export interface InspectedBySuggestion {
+  user_id: number;
+  user_code: string;
+  username: string;
 }
 
 export interface QualityInspectionFinishDto {
@@ -34,6 +41,7 @@ export interface QualityInspectionWithDetails extends QualityInspection {
   batch_code?: string;
   product_name?: string;
   product_code?: string;
+  unit_name?: string | null;
   produced_qty?: number;
   batch_status?: string;
   max_inspection_no?: number;

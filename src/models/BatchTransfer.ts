@@ -21,6 +21,7 @@ export interface BatchTransferWithDetails extends BatchTransfer {
   batch_transfer_code?: string;
   product_name?: string;
   product_code?: string;
+  unit_name?: string | null;
   from_location_name?: string;
   to_location_name?: string;
   created_by_username?: string;

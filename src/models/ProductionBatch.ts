@@ -3,6 +3,7 @@ export interface ProductionBatch {
   plan_id: number;
   batch_code: string;
   product_id: number;
+  produced_by: number;
   produced_qty: number | null;
   production_date: string | null;
   expired_date: string | null;
@@ -16,6 +17,7 @@ export interface ProductionBatch {
 export interface ProductionBatchCreateDto {
   plan_id: number;
   product_id: number;
+  produced_by: number;
   created_by: number;
 }
 
@@ -30,7 +32,15 @@ export interface ProductionBatchWithDetails extends ProductionBatch {
   plan_code?: string;
   product_name?: string;
   product_code?: string;
+  unit_name?: string | null;
   created_by_username?: string;
+  produced_by_username?: string;
+}
+
+export interface ProducedBySuggestion {
+  user_id: number;
+  user_code: string;
+  username: string;
 }
 
 export interface BatchStatusHistory {

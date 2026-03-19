@@ -63,6 +63,8 @@ export interface CkInventoryRow {
   unit: string;
   batch_id: number;
   batch_code: string;
+  production_date?: string | null;
+  expired_date?: string | null;
   qty_on_hand: number;
   qty_available: number;
   updated_at: string;

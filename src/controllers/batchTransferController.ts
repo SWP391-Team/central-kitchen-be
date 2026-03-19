@@ -117,6 +117,26 @@ export class BatchTransferController {
     }
   };
 
+  getById = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const id = parseInt(req.params.id as string, 10);
+      if (isNaN(id)) {
+        res.status(400).json({ success: false, message: 'Invalid transfer ID' });
+        return;
+      }
+
+      const data = await batchTransferService.getBatchTransferById(id);
+      if (!data) {
+        res.status(404).json({ success: false, message: 'Batch transfer not found' });
+        return;
+      }
+
+      res.json({ success: true, data });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  };
+
   create = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const user = req.user;

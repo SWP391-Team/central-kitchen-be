@@ -11,17 +11,22 @@ const WITH_DETAILS_SELECT = `
     pb.batch_code,
     p.product_name,
     p.product_code,
+    un.unit_name,
     fl.location_name AS from_location_name,
     tl.location_name AS to_location_name,
     u.username       AS created_by_username,
-    COALESCE((
-      SELECT SUM(wr.received_qty)
-      FROM warehouse_receive wr
-      WHERE wr.batch_transfer_id = bt.batch_transfer_id
-    ), 0)::int AS already_received_qty
+    COALESCE(wr_sum.already_received_qty, 0)::int AS already_received_qty
   FROM batch_transfer bt
   LEFT JOIN production_batch pb ON bt.batch_id        = pb.batch_id
   LEFT JOIN product          p  ON bt.product_id      = p.product_id
+  LEFT JOIN unit             un ON p.unit_id          = un.unit_id
+  LEFT JOIN (
+    SELECT
+      batch_transfer_id,
+      SUM(received_qty)::int AS already_received_qty
+    FROM warehouse_receive
+    GROUP BY batch_transfer_id
+  ) wr_sum ON bt.batch_transfer_id = wr_sum.batch_transfer_id
   LEFT JOIN location         fl ON bt.from_location_id = fl.location_id
   LEFT JOIN location         tl ON bt.to_location_id   = tl.location_id
   LEFT JOIN "user"           u  ON bt.created_by       = u.user_id

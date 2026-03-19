@@ -78,6 +78,13 @@ export class LocationService {
       throw new Error('Location not found');
     }
 
+    if (!is_active && location.is_active) {
+      const blockers = await this.locationRepository.getDeactivationBlockers(locationId);
+      if (blockers.length > 0) {
+        throw new Error(`Cannot deactivate location: ${blockers.join('; ')}`);
+      }
+    }
+
     const updatedLocation = await this.locationRepository.updateStatus(locationId, is_active);
     if (!updatedLocation) {
       throw new Error('Failed to update location status');

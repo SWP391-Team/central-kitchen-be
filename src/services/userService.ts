@@ -4,6 +4,21 @@ import { UserCreateDto, UserUpdateDto, UserResponse } from '../models/User';
 
 export class UserService {
   private userRepository: UserRepository;
+  private readonly DEACTIVATION_BLOCKED_ERROR_PREFIX = 'USER_DEACTIVATION_BLOCKED:';
+
+  private isUserCodeConflict(error: unknown): boolean {
+    if (!error || typeof error !== 'object') {
+      return false;
+    }
+
+    const dbError = error as { code?: string; constraint?: string; detail?: string };
+    if (dbError.code !== '23505') {
+      return false;
+    }
+
+    const combinedMessage = `${dbError.constraint || ''} ${dbError.detail || ''}`.toLowerCase();
+    return combinedMessage.includes('user_code');
+  }
 
   private normalizeLocationIds(locationIds?: number[]): number[] {
     if (!locationIds) {
@@ -28,18 +43,6 @@ export class UserService {
   }
 
   async createUser(userData: UserCreateDto, createdBy: number): Promise<UserResponse> {
-    const userCodePattern = /^USR-\d{4}$/;
-    if (!userData.user_code || !userCodePattern.test(userData.user_code.toUpperCase())) {
-      throw new Error('Invalid user_code format. Expected format: USR-XXXX');
-    }
-
-    userData.user_code = userData.user_code.toUpperCase();
-
-    const existingUserCode = await this.userRepository.findByUserCode(userData.user_code);
-    if (existingUserCode) {
-      throw new Error('User code already exists');
-    }
-
     const existingUser = await this.userRepository.findByUsername(userData.username);
     if (existingUser) {
       throw new Error('Username already exists');
@@ -51,15 +54,29 @@ export class UserService {
 
     const hashedPassword = await bcrypt.hash(userData.password, 10);
 
-    const user = await this.userRepository.create({
-      ...userData,
-      password: hashedPassword,
-      location_ids: normalizedLocationIds,
-      location_id: normalizedLocationIds[0] ?? null,
-      created_by: createdBy,
-    });
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const generatedUserCode = await this.userRepository.generateNextUserCode();
 
-    return this.toUserResponse(user);
+      try {
+        const user = await this.userRepository.create({
+          ...userData,
+          user_code: generatedUserCode,
+          password: hashedPassword,
+          location_ids: normalizedLocationIds,
+          location_id: normalizedLocationIds[0] ?? null,
+          created_by: createdBy,
+        });
+
+        return this.toUserResponse(user);
+      } catch (error) {
+        if (this.isUserCodeConflict(error)) {
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    throw new Error('Failed to generate unique user code');
   }
 
   async updateUser(userId: number, userData: UserUpdateDto): Promise<UserResponse | null> {
@@ -82,6 +99,35 @@ export class UserService {
       const normalizedLocationIds = this.normalizeLocationIds(userData.location_ids);
       userData.location_ids = normalizedLocationIds;
       userData.location_id = normalizedLocationIds[0] ?? null;
+    }
+
+    if (userData.is_active === false) {
+      const currentUser = await this.userRepository.findById(userId);
+
+      if (!currentUser) {
+        return null;
+      }
+
+      if (currentUser.is_active) {
+        const blockingAssignments = await this.userRepository.getDeactivationBlockingAssignments(userId);
+        const warningItems: string[] = [];
+
+        if (blockingAssignments.productionBatchCodes.length > 0) {
+          warningItems.push(`Produce (${blockingAssignments.productionBatchCodes.length})`);
+        }
+        if (blockingAssignments.qualityInspectionCodes.length > 0) {
+          warningItems.push(`Inspection (${blockingAssignments.qualityInspectionCodes.length})`);
+        }
+        if (blockingAssignments.reworkCodes.length > 0) {
+          warningItems.push(`Rework (${blockingAssignments.reworkCodes.length})`);
+        }
+
+        if (warningItems.length > 0) {
+          throw new Error(
+            `${this.DEACTIVATION_BLOCKED_ERROR_PREFIX}Cannot deactivate this user because they are assigned to active tasks: ${warningItems.join(', ')}.`
+          );
+        }
+      }
     }
 
     const user = await this.userRepository.update(userId, userData);

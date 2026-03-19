@@ -99,7 +99,7 @@ export class ProductController {
       });
     } catch (error: any) {
       console.error('Create product error:', error);
-      if (error.message.includes('required')) {
+      if (error.message.includes('required') || error.message.includes('Unit not found or inactive')) {
         res.status(400).json({
           success: false,
           message: error.message,
@@ -130,6 +130,14 @@ export class ProductController {
 
   updateProduct = async (req: Request, res: Response): Promise<void> => {
     try {
+      if (!req.user) {
+        res.status(401).json({
+          success: false,
+          message: 'Unauthorized',
+        });
+        return;
+      }
+
       const productId = parseInt(req.params.id as string);
       
       if (isNaN(productId)) {
@@ -142,7 +150,7 @@ export class ProductController {
 
       const productData: ProductUpdateDto = req.body;
       
-      const updatedProduct = await productService.updateProduct(productId, productData);
+      const updatedProduct = await productService.updateProduct(productId, productData, req.user.user_id);
       
       res.json({
         success: true,
@@ -161,7 +169,12 @@ export class ProductController {
           success: false,
           message: error.message,
         });
-      } else if (error.message.includes('cannot be empty') || error.message.includes('already exists')) {
+      } else if (
+        error.message.includes('cannot be empty')
+        || error.message.includes('already exists')
+        || error.message.includes('Unit is invalid')
+        || error.message.includes('Unit not found or inactive')
+      ) {
         res.status(400).json({
           success: false,
           message: error.message,
@@ -177,6 +190,14 @@ export class ProductController {
 
   toggleProductActive = async (req: Request, res: Response): Promise<void> => {
     try {
+      if (!req.user) {
+        res.status(401).json({
+          success: false,
+          message: 'Unauthorized',
+        });
+        return;
+      }
+
       const productId = parseInt(req.params.id as string);
       
       if (isNaN(productId)) {
@@ -187,7 +208,7 @@ export class ProductController {
         return;
       }
 
-      const updatedProduct = await productService.toggleProductActive(productId);
+      const updatedProduct = await productService.toggleProductActive(productId, req.user.user_id);
       
       res.json({
         success: true,
@@ -198,6 +219,11 @@ export class ProductController {
       console.error('Toggle product active error:', error);
       if (error.message === 'Product not found') {
         res.status(404).json({
+          success: false,
+          message: error.message,
+        });
+      } else if (error.message?.startsWith('Cannot deactivate product:')) {
+        res.status(409).json({
           success: false,
           message: error.message,
         });
