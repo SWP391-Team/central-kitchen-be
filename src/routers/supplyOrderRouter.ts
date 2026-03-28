@@ -13,9 +13,9 @@ router.get('/', requireRole(1, 2, 3), supplyOrderController.getList);
 router.get('/:id', requireRole(1, 2, 3), supplyOrderController.getDetail);
 
 router.post('/', requireRole(3), supplyOrderController.create);
-router.put('/:id/send-to-ck', requireRole(1, 2, 3), supplyOrderController.sendToCk);
-router.put('/:id/approve', requireRole(1, 2), supplyOrderController.approve);
-router.post('/:id/items/:itemId/deliver', requireRole(1, 2), supplyOrderController.deliverItem);
-router.put('/:id/close', requireRole(1, 2, 3), supplyOrderController.closeOrder);
+router.put('/:id/send-to-ck', requireRole(2, 3), supplyOrderController.sendToCk);
+router.put('/:id/approve', requireRole(2), supplyOrderController.approve);
+router.post('/:id/items/:itemId/deliver', requireRole(2), supplyOrderController.deliverItem);
+router.put('/:id/close', requireRole(2, 3), supplyOrderController.closeOrder);
 
 export default router;

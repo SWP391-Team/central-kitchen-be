@@ -10,7 +10,7 @@ router.get('/', requireRole(1, 2, 3), batchTransferController.getAll);
 router.get('/delivering', requireRole(1, 2, 3), batchTransferController.getDelivering);
 router.get('/batch/:batchId', requireRole(1, 2, 3), batchTransferController.getByBatchId);
 router.get('/:id', requireRole(1, 2, 3), batchTransferController.getById);
-router.post('/', requireRole(1, 2), batchTransferController.create);
-router.post('/:id/complete-receive', requireRole(1, 2, 3), batchTransferController.completeReceive);
+router.post('/', requireRole(2), batchTransferController.create);
+router.post('/:id/complete-receive', requireRole(2, 3), batchTransferController.completeReceive);
 
 export default router;

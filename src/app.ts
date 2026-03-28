@@ -16,7 +16,9 @@ import inventoryRouter from './routers/inventoryRouter';
 import supplyOrderRouter from './routers/supplyOrderRouter';
 import auditLogRouter from './routers/auditLogRouter';
 import unitRouter from './routers/unitRouter';
+import reserveRouter from './routers/reserveRouter';
 import { auditLogMiddleware } from './middlewares/auditLogMiddleware';
+import { startInventoryCleanupScheduler } from './services/inventoryCleanupScheduler';
 
 dotenv.config();
 
@@ -38,6 +40,7 @@ app.use('/api/batch-transfers', batchTransferRouter);
 app.use('/api/warehouse-receives', warehouseReceiveRouter);
 app.use('/api/inventory', inventoryRouter);
 app.use('/api/supply-orders', supplyOrderRouter);
+app.use('/api/reserves', reserveRouter);
 app.use('/api/audit-logs', auditLogRouter);
 app.use('/api/units', unitRouter);
 
@@ -58,6 +61,8 @@ app.get('/api/health', async (req, res) => {
     });
   }
 });
+
+startInventoryCleanupScheduler();
 
 const PORT = process.env.PORT || 3000;
 

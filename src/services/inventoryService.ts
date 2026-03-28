@@ -4,6 +4,10 @@ import { InventoryTransactionWithDetails } from '../models/InventoryTransaction'
 
 export class InventoryService {
 
+  async cleanupZeroQuantityRows(retentionDays: number): Promise<number> {
+    return inventoryRepository.cleanupZeroQuantityRows(retentionDays);
+  }
+
   async getBatchInventory(
     locationIds?: number[]
   ): Promise<BatchInventoryWithDetails[]> {

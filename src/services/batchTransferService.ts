@@ -20,6 +20,16 @@ export class BatchTransferService {
       const batch = batchResult.rows[0];
       if (!batch) throw new Error('Batch not found');
 
+      if (batch.expired_date) {
+        const expiredDate = new Date(batch.expired_date);
+        expiredDate.setHours(0, 0, 0, 0);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (expiredDate < today) {
+          throw new Error('Cannot transfer an expired batch');
+        }
+      }
+
       if (!batch.good_qty || batch.good_qty <= 0) {
         throw new Error('Batch has no good quantity to transfer');
       }

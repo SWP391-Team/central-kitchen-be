@@ -10,6 +10,28 @@ import { BatchInventory, BatchInventoryWithDetails } from '../models/BatchInvent
 
 export class InventoryRepository {
 
+  async cleanupZeroQuantityRows(
+    retentionDays: number,
+    client?: PoolClient
+  ): Promise<number> {
+    const safeRetentionDays =
+      Number.isFinite(retentionDays) && retentionDays > 0
+        ? Math.floor(retentionDays)
+        : 30;
+
+    const query = `DELETE FROM batch_inventory
+                   WHERE qty_on_hand = 0
+                     AND qty_reserved = 0
+                     AND qty_available = 0
+                     AND updated_at < (CURRENT_TIMESTAMP - ($1::int * INTERVAL '1 day'))`;
+
+    const result = client
+      ? await client.query(query, [safeRetentionDays])
+      : await pool.query(query, [safeRetentionDays]);
+
+    return result.rowCount ?? 0;
+  }
+
   async createTransactionWithClient(
     client: PoolClient,
     data: {

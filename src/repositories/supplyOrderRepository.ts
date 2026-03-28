@@ -164,6 +164,7 @@ export class SupplyOrderRepository {
          l.location_type,
          cb.username AS created_by_username,
          ab.username AS approved_by_username,
+         clb.username AS closed_by_username,
          (
            SELECT COUNT(*)::int
            FROM supply_order_item soi
@@ -174,6 +175,7 @@ export class SupplyOrderRepository {
        LEFT JOIN location l ON so.location_id = l.location_id
        LEFT JOIN "user" cb ON so.created_by = cb.user_id
        LEFT JOIN "user" ab ON so.approved_by = ab.user_id
+      LEFT JOIN "user" clb ON so.closed_by = clb.user_id
        ${whereSql}
        ORDER BY so.created_at DESC, so.supply_order_id DESC
        LIMIT ${limit} OFFSET ${offset}`,
@@ -196,12 +198,14 @@ export class SupplyOrderRepository {
          l.location_code,
          l.location_type,
          cb.username AS created_by_username,
-         ab.username AS approved_by_username
+         ab.username AS approved_by_username,
+         clb.username AS closed_by_username
        FROM supply_order so
        LEFT JOIN "user" rq ON so.requested_by = rq.user_id
        LEFT JOIN location l ON so.location_id = l.location_id
        LEFT JOIN "user" cb ON so.created_by = cb.user_id
        LEFT JOIN "user" ab ON so.approved_by = ab.user_id
+       LEFT JOIN "user" clb ON so.closed_by = clb.user_id
        WHERE so.supply_order_id = $1`,
       [orderId]
     );
@@ -352,6 +356,19 @@ export class SupplyOrderRepository {
     );
 
     return result.rows[0] || null;
+  }
+
+  async updateItemsStatusByOrderWithClient(
+    client: PoolClient,
+    orderId: number,
+    status: string
+  ): Promise<void> {
+    await client.query(
+      `UPDATE supply_order_item
+       SET status = $1
+       WHERE supply_order_id = $2`,
+      [status, orderId]
+    );
   }
 
   async getDeliveredQtyByItemIdWithClient(

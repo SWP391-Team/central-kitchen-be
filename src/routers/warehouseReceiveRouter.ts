@@ -18,6 +18,6 @@ router.get(
   warehouseReceiveController.searchReceivedBySuggestions
 );
 router.get('/:id', requireRole(1, 2, 3), warehouseReceiveController.getById);
-router.post('/', requireRole(1, 2, 3), warehouseReceiveController.create);
+router.post('/', requireRole(2, 3), warehouseReceiveController.create);
 
 export default router;

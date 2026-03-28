@@ -2,6 +2,7 @@ import pool from '../config/database';
 import batchTransferRepository from '../repositories/batchTransferRepository';
 import inventoryRepository from '../repositories/inventoryRepository';
 import supplyOrderRepository from '../repositories/supplyOrderRepository';
+import reserveService from './reserveService';
 import {
   ApproveSupplyOrderDto,
   CloseSupplyOrderDto,
@@ -57,8 +58,8 @@ export class SupplyOrderService {
   }
 
   private ensureCentralUser(user: AuthUser) {
-    if (user.role_id !== 1 && user.role_id !== 2) {
-      throw new Error('Only Admin or Central Staff can perform this action');
+    if (user.role_id !== 2) {
+      throw new Error('Only Central Staff can perform this action');
     }
   }
 
@@ -315,6 +316,12 @@ export class SupplyOrderService {
         'Pending'
       );
 
+      await supplyOrderRepository.updateItemsStatusByOrderWithClient(
+        client,
+        orderId,
+        'Pending'
+      );
+
       await client.query('COMMIT');
 
       const updated = await supplyOrderRepository.findById(orderId);
@@ -398,6 +405,17 @@ export class SupplyOrderService {
           approvedQty,
           itemStatus
         );
+
+        if (approvedQty > 0) {
+          await reserveService.ensureReserveOnApproveWithClient(client, {
+            supply_order_item_id: itemId,
+            supply_order_id: orderId,
+            product_id: item.product_id,
+            location_id: order.location_id,
+            approved_qty: approvedQty,
+            user_id: user.user_id,
+          });
+        }
       }
 
       const orderStatus = hasApproved ? 'Approved' : 'Rejected';
@@ -466,10 +484,17 @@ export class SupplyOrderService {
     this.ensureAuthenticated(user);
     this.ensureCentralUser(user);
 
-    if (!payload.batch_id || payload.batch_id <= 0) {
+    const selectedBatchId = this.toId(payload.batch_id);
+    const selectedLocationId = this.toId(payload.location_id);
+    const transferQty = Number(payload.transfer_qty || 0);
+
+    if (!selectedBatchId) {
       throw new Error('batch_id is required');
     }
-    if (!payload.transfer_qty || payload.transfer_qty <= 0) {
+    if (!selectedLocationId) {
+      throw new Error('location_id is required');
+    }
+    if (!transferQty || transferQty <= 0) {
       throw new Error('transfer_qty must be greater than 0');
     }
     if (!payload.transfer_date) {
@@ -510,18 +535,18 @@ export class SupplyOrderService {
       );
       const remainingQty = itemApprovedQty - deliveredQty;
 
-      if (payload.transfer_qty > remainingQty) {
+      if (transferQty > remainingQty) {
         throw new Error(
-          `Transfer qty (${payload.transfer_qty}) exceeds remaining qty (${remainingQty})`
+          `Transfer qty (${transferQty}) exceeds remaining qty (${remainingQty})`
         );
       }
 
       const batchResult = await client.query(
-        `SELECT batch_id, product_id
+        `SELECT batch_id, product_id, expired_date
          FROM production_batch
          WHERE batch_id = $1
          FOR UPDATE`,
-        [payload.batch_id]
+        [selectedBatchId]
       );
       if (batchResult.rows.length === 0) {
         throw new Error('Batch not found');
@@ -534,58 +559,83 @@ export class SupplyOrderService {
         throw new Error('Batch product does not match supply order item product');
       }
 
+      if (batch.expired_date) {
+        const expiredDate = new Date(batch.expired_date);
+        expiredDate.setHours(0, 0, 0, 0);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (expiredDate < today) {
+          throw new Error('Cannot deliver from an expired batch');
+        }
+      }
+
       const fromInventoryResult = await client.query(
         `SELECT bi.location_id, bi.qty_on_hand
          FROM batch_inventory bi
          INNER JOIN location l ON l.location_id = bi.location_id
          WHERE l.location_type = 'CK_WAREHOUSE'
            AND l.is_active = true
+           AND bi.location_id = $3
            AND bi.batch_id = $1
            AND bi.product_id = $2
            AND bi.qty_on_hand > 0
-         ORDER BY bi.qty_on_hand DESC, bi.location_id ASC
-         LIMIT 1
          FOR UPDATE`,
-        [payload.batch_id, itemProductId]
+        [selectedBatchId, itemProductId, selectedLocationId]
       );
 
       if (fromInventoryResult.rows.length === 0) {
-        throw new Error('No inventory available in CK Warehouse for this batch/product');
+        throw new Error('No inventory available in selected CK Warehouse location for this batch/product');
       }
 
       const fromInventory = fromInventoryResult.rows[0];
-      if (fromInventory.qty_on_hand < payload.transfer_qty) {
+      if (fromInventory.qty_on_hand < transferQty) {
         throw new Error(
-          `Insufficient CK Warehouse inventory. Available: ${fromInventory.qty_on_hand}, requested: ${payload.transfer_qty}`
+          `Insufficient CK Warehouse inventory. Available: ${fromInventory.qty_on_hand}, requested: ${transferQty}`
         );
       }
 
+      await reserveService.validateDeliveryBatchRuleWithClient(client, {
+        supply_order_item_id: itemId,
+        batch_id: selectedBatchId,
+        location_id: selectedLocationId,
+        transfer_qty: transferQty,
+      });
+
       const transfer = await batchTransferRepository.createWithClient(client, {
-        batch_id: payload.batch_id,
+        batch_id: selectedBatchId,
         product_id: item.product_id,
-        from_location_id: fromInventory.location_id,
+        from_location_id: selectedLocationId,
         to_location_id: order.location_id,
-        transfer_qty: payload.transfer_qty,
+        transfer_qty: transferQty,
         transfer_date: payload.transfer_date,
         created_by: user.user_id,
         supply_order_item_id: itemId,
       });
 
+      await reserveService.consumeOnDeliveryWithClient(client, {
+        supply_order_item_id: itemId,
+        batch_id: selectedBatchId,
+        location_id: selectedLocationId,
+        transfer_qty: transferQty,
+        transfer_id: transfer.batch_transfer_id,
+        user_id: user.user_id,
+      });
+
       await inventoryRepository.createTransactionWithClient(client, {
-        location_id: fromInventory.location_id,
+        location_id: selectedLocationId,
         product_id: itemProductId,
-        batch_id: payload.batch_id,
+        batch_id: selectedBatchId,
         reference_type: 'batch_transfer',
         reference_id: transfer.batch_transfer_id,
-        qty: -payload.transfer_qty,
+        qty: -transferQty,
         transaction_type: 'OUT',
       });
 
       await inventoryRepository.upsertBatchInventoryWithClient(client, {
-        location_id: fromInventory.location_id,
+        location_id: selectedLocationId,
         product_id: itemProductId,
-        batch_id: payload.batch_id,
-        qty_change: -payload.transfer_qty,
+        batch_id: selectedBatchId,
+        qty_change: -transferQty,
       });
 
       await supplyOrderRepository.syncDeliveredQtyForItemWithClient(client, itemId);
@@ -644,6 +694,8 @@ export class SupplyOrderService {
           throw new Error('You do not have permission to close this supply order');
         }
       }
+
+      await reserveService.releaseOnCloseWithClient(client, orderId, user.user_id);
 
       await supplyOrderRepository.closeOrderWithClient(client, orderId, {
         closed_by: user.user_id,

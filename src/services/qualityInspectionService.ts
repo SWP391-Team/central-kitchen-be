@@ -189,6 +189,10 @@ export class QualityInspectionService {
       throw new Error(`For full inspection, inspected quantity must equal source quantity (${sourceQty})`);
     }
 
+    if (data.inspection_mode === 'full' && data.failed_qty === 0 && data.inspection_result !== 'Pass') {
+      throw new Error('Full inspection with failed quantity = 0 must have result Pass');
+    }
+
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
