@@ -70,6 +70,49 @@ export class SupplyOrderService {
     }
   }
 
+  private parseDateOnly(value?: string | null): string | null {
+    if (!value) return null;
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      throw new Error('Invalid date format');
+    }
+    return parsed.toISOString().slice(0, 10);
+  }
+
+  private parseDateTime(value?: string | null): string | null {
+    if (!value) return null;
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      throw new Error('Invalid datetime format');
+    }
+    return parsed.toISOString();
+  }
+
+  private normalizePriority(value?: string | null): 'LOW' | 'NORMAL' | 'URGENT' {
+    const normalized = String(value || 'NORMAL').trim().toUpperCase();
+    if (!['LOW', 'NORMAL', 'URGENT'].includes(normalized)) {
+      throw new Error('Invalid priority');
+    }
+    return normalized as 'LOW' | 'NORMAL' | 'URGENT';
+  }
+
+  private normalizeSourceType(value?: string | null): 'MANUAL' | 'REORDER' {
+    const normalized = String(value || 'MANUAL').trim().toUpperCase();
+    if (!['MANUAL', 'REORDER'].includes(normalized)) {
+      throw new Error('Invalid source_type');
+    }
+    return normalized as 'MANUAL' | 'REORDER';
+  }
+
+  private normalizeShortageReason(value?: string | null): 'OUT_OF_STOCK' | 'LOW_STOCK' | 'QUALITY_ISSUE' | 'OTHER' | null {
+    if (!value) return null;
+    const normalized = String(value).trim().toUpperCase();
+    if (!['OUT_OF_STOCK', 'LOW_STOCK', 'QUALITY_ISSUE', 'OTHER'].includes(normalized)) {
+      throw new Error('Invalid shortage_reason');
+    }
+    return normalized as 'OUT_OF_STOCK' | 'LOW_STOCK' | 'QUALITY_ISSUE' | 'OTHER';
+  }
+
   private getUserLocationScope(user: AuthUser): number[] {
     if (Array.isArray(user.location_ids) && user.location_ids.length > 0) {
       const normalized = this.normalizeLocationIds(user.location_ids);
@@ -229,6 +272,36 @@ export class SupplyOrderService {
       throw new Error('At least one supply order item is required');
     }
 
+    const orderDate = this.parseDateOnly(payload.order_date) || new Date().toISOString().slice(0, 10);
+    const needByDate = this.parseDateOnly(payload.need_by_date);
+    const priority = this.normalizePriority(payload.priority);
+    const sourceType = this.normalizeSourceType(payload.source_type);
+    const reorderFromOrderId = this.toId((payload as any).reorder_from_order_id);
+
+    if (sourceType === 'REORDER' && !reorderFromOrderId) {
+      throw new Error('reorder_from_order_id is required when source_type is REORDER');
+    }
+
+    if (sourceType === 'MANUAL' && reorderFromOrderId) {
+      throw new Error('reorder_from_order_id is only allowed when source_type is REORDER');
+    }
+
+    if (reorderFromOrderId) {
+      const previousOrder = await supplyOrderRepository.findById(reorderFromOrderId);
+      if (!previousOrder) {
+        throw new Error('reorder_from_order_id does not exist');
+      }
+
+      const previousLocationId = this.normalizeLocationIds([previousOrder.location_id])[0];
+      if (!previousLocationId || previousLocationId !== storeLocationId) {
+        throw new Error('reorder_from_order_id must belong to the same store');
+      }
+    }
+
+    if (needByDate && needByDate < orderDate) {
+      throw new Error('need_by_date must be on or after order_date');
+    }
+
     const productSet = new Set<number>();
     for (const item of payload.items) {
       if (!item.product_id || item.product_id <= 0) {
@@ -240,6 +313,20 @@ export class SupplyOrderService {
       if (productSet.has(item.product_id)) {
         throw new Error('Duplicate products are not allowed in one supply order');
       }
+
+      const itemNeedByDate = this.parseDateOnly(item.need_by_date_item);
+      if (itemNeedByDate && itemNeedByDate < orderDate) {
+        throw new Error('need_by_date_item must be on or after order_date');
+      }
+
+      const expectedDeliveryDate = this.parseDateTime(item.expected_delivery_date);
+      if (expectedDeliveryDate && itemNeedByDate) {
+        const expectedDateOnly = expectedDeliveryDate.slice(0, 10);
+        if (expectedDateOnly < itemNeedByDate) {
+          throw new Error('expected_delivery_date must be on or after need_by_date_item');
+        }
+      }
+
       productSet.add(item.product_id);
     }
 
@@ -250,15 +337,24 @@ export class SupplyOrderService {
       const order = await supplyOrderRepository.createSupplyOrderWithClient(client, {
         location_id: storeLocationId,
         requested_by: payload.requested_by_user_id,
+        order_date: orderDate,
+        need_by_date: needByDate,
+        priority,
+        source_type: sourceType,
+        reorder_from_order_id: reorderFromOrderId || null,
         note: payload.note,
         created_by: user.user_id,
       });
 
       for (const item of payload.items) {
+        const itemNeedByDate = this.parseDateOnly(item.need_by_date_item);
+        const expectedDeliveryDate = this.parseDateTime(item.expected_delivery_date);
         await supplyOrderRepository.createSupplyOrderItemWithClient(client, {
           supply_order_id: order.supply_order_id,
           product_id: item.product_id,
           requested_qty: item.requested_qty,
+          need_by_date_item: itemNeedByDate || needByDate,
+          expected_delivery_date: expectedDeliveryDate,
         });
       }
 
@@ -310,10 +406,11 @@ export class SupplyOrderService {
         throw new Error('Only Draft supply orders can be sent to CK');
       }
 
-      await supplyOrderRepository.updateOrderStatusOnlyWithClient(
+      await supplyOrderRepository.markOrderSubmittedWithClient(
         client,
         orderId,
-        'Pending'
+        user.user_id,
+        new Date().toISOString()
       );
 
       await supplyOrderRepository.updateItemsStatusByOrderWithClient(
@@ -368,7 +465,14 @@ export class SupplyOrderService {
         throw new Error('Supply order has no items');
       }
 
-      const approvalMap = new Map<number, number>();
+      const approvalMap = new Map<
+        number,
+        {
+          approvedQty: number;
+          expectedDeliveryDate: string | null;
+          shortageReason: 'OUT_OF_STOCK' | 'LOW_STOCK' | 'QUALITY_ISSUE' | 'OTHER' | null;
+        }
+      >();
       for (const item of payload.items) {
         const payloadItemId = this.toId((item as any).supply_order_item_id);
         if (!payloadItemId) {
@@ -380,18 +484,37 @@ export class SupplyOrderService {
           throw new Error('approved_qty must be a number');
         }
 
-        approvalMap.set(payloadItemId, approvedQty);
+        const expectedDeliveryDate = this.parseDateTime((item as any).expected_delivery_date);
+        const shortageReason = this.normalizeShortageReason((item as any).shortage_reason);
+
+        approvalMap.set(payloadItemId, { approvedQty, expectedDeliveryDate, shortageReason });
       }
 
       let hasApproved = false;
       for (const item of items) {
         const itemId = this.toId(item.supply_order_item_id);
-        const approvedQty = approvalMap.get(itemId);
-        if (approvedQty === undefined) {
+        const approval = approvalMap.get(itemId);
+        if (!approval) {
           throw new Error('All supply order items must have approved_qty');
         }
+        const approvedQty = approval.approvedQty;
         if (approvedQty < 0 || approvedQty > item.requested_qty) {
           throw new Error('approved_qty must be between 0 and requested_qty');
+        }
+
+        if (approval.expectedDeliveryDate && item.need_by_date_item) {
+          const expectedDateOnly = approval.expectedDeliveryDate.slice(0, 10);
+          const needByDateOnly = this.parseDateOnly(item.need_by_date_item);
+          if (needByDateOnly && expectedDateOnly < needByDateOnly) {
+            throw new Error(
+              `expected_delivery_date must be on or after need_by_date_item (item ${itemId})`
+            );
+          }
+        }
+
+        const isShortApproved = approvedQty < item.requested_qty;
+        if (isShortApproved && !approval.shortageReason) {
+          throw new Error(`shortage_reason is required when approved_qty is less than requested_qty (item ${itemId})`);
         }
 
         const itemStatus = approvedQty > 0 ? 'Approved' : 'Rejected';
@@ -403,7 +526,9 @@ export class SupplyOrderService {
           client,
           itemId,
           approvedQty,
-          itemStatus
+          itemStatus,
+          approval.expectedDeliveryDate,
+          isShortApproved ? approval.shortageReason : null
         );
 
         if (approvedQty > 0) {
@@ -421,7 +546,7 @@ export class SupplyOrderService {
       const orderStatus = hasApproved ? 'Approved' : 'Rejected';
       await supplyOrderRepository.updateOrderStatusWithClient(client, orderId, orderStatus, {
         approved_by: user.user_id,
-        approved_date: new Date().toISOString(),
+        approved_at: new Date().toISOString(),
         note: payload.note || null,
       });
 
@@ -455,6 +580,7 @@ export class SupplyOrderService {
     const allApprovedZero = summary.every((row) => row.approved_qty <= 0);
     if (allApprovedZero) {
       await supplyOrderRepository.updateOrderStatusOnlyWithClient(client, orderId, 'Rejected');
+      await supplyOrderRepository.setCompletedAtWithClient(client, orderId, null);
       return;
     }
 
@@ -463,16 +589,19 @@ export class SupplyOrderService {
     );
     if (allDelivered) {
       await supplyOrderRepository.updateOrderStatusOnlyWithClient(client, orderId, 'Delivered');
+      await supplyOrderRepository.setCompletedAtWithClient(client, orderId, new Date().toISOString());
       return;
     }
 
     const hasAnyDelivered = summary.some((row) => row.delivered_qty > 0);
     if (hasAnyDelivered) {
       await supplyOrderRepository.updateOrderStatusOnlyWithClient(client, orderId, 'Partly Delivered');
+      await supplyOrderRepository.setCompletedAtWithClient(client, orderId, null);
       return;
     }
 
     await supplyOrderRepository.updateOrderStatusOnlyWithClient(client, orderId, 'Approved');
+    await supplyOrderRepository.setCompletedAtWithClient(client, orderId, null);
   }
 
   async createDeliveryTransfer(
@@ -639,6 +768,12 @@ export class SupplyOrderService {
       });
 
       await supplyOrderRepository.syncDeliveredQtyForItemWithClient(client, itemId);
+
+      await supplyOrderRepository.markFirstDeliveryAtWithClient(
+        client,
+        orderId,
+        new Date().toISOString()
+      );
 
       await this.refreshOrderStatusByDeliveries(client, orderId);
 

@@ -46,6 +46,11 @@ export class SupplyOrderRepository {
     data: {
       location_id: number;
       requested_by: number;
+      order_date?: string | null;
+      need_by_date?: string | null;
+      priority?: string;
+      source_type?: string;
+      reorder_from_order_id?: number | null;
       note?: string;
       created_by: number;
     }
@@ -59,13 +64,29 @@ export class SupplyOrderRepository {
          status,
          requested_by,
          approved_by,
-         approved_date,
+         approved_at,
+         order_date,
+         need_by_date,
+         priority,
+         source_type,
+         reorder_from_order_id,
          note,
          created_by
        )
-       VALUES ($1, $2, 'Draft', $3, NULL, NULL, $4, $5)
+       VALUES ($1, $2, 'Draft', $3, NULL, NULL, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
-      [code, data.location_id, data.requested_by, data.note || null, data.created_by]
+      [
+        code,
+        data.location_id,
+        data.requested_by,
+        data.order_date || null,
+        data.need_by_date || null,
+        data.priority || 'NORMAL',
+        data.source_type || 'MANUAL',
+        data.reorder_from_order_id || null,
+        data.note || null,
+        data.created_by,
+      ]
     );
 
     return result.rows[0];
@@ -77,6 +98,9 @@ export class SupplyOrderRepository {
       supply_order_id: number;
       product_id: number;
       requested_qty: number;
+      need_by_date_item?: string | null;
+      expected_delivery_date?: string | null;
+      shortage_reason?: string | null;
     }
   ): Promise<SupplyOrderItem> {
     const result = await client.query(
@@ -86,11 +110,21 @@ export class SupplyOrderRepository {
          requested_qty,
          delivered_qty,
          approved_qty,
-         status
+         status,
+         need_by_date_item,
+         expected_delivery_date,
+         shortage_reason
        )
-       VALUES ($1, $2, $3, 0, 0, 'Draft')
+       VALUES ($1, $2, $3, 0, 0, 'Draft', $4, $5, $6)
        RETURNING *`,
-      [data.supply_order_id, data.product_id, data.requested_qty]
+      [
+        data.supply_order_id,
+        data.product_id,
+        data.requested_qty,
+        data.need_by_date_item || null,
+        data.expected_delivery_date || null,
+        data.shortage_reason || null,
+      ]
     );
 
     return result.rows[0];
@@ -115,12 +149,19 @@ export class SupplyOrderRepository {
       idx++;
     }
 
+    if (params.role_id === 2) {
+      where.push(`so.status <> 'Draft'`);
+    }
+
     if (params.search) {
       where.push(`(
         so.supply_order_code ILIKE $${idx}
         OR l.location_name ILIKE $${idx}
         OR rq.username ILIKE $${idx}
         OR rq.user_code ILIKE $${idx}
+        OR so.priority ILIKE $${idx}
+        OR so.source_type ILIKE $${idx}
+        OR parent_so.supply_order_code ILIKE $${idx}
         OR so.requested_by::text ILIKE $${idx}
       )`);
       values.push(`%${params.search}%`);
@@ -150,6 +191,7 @@ export class SupplyOrderRepository {
        FROM supply_order so
        LEFT JOIN location l ON so.location_id = l.location_id
        LEFT JOIN "user" rq ON so.requested_by = rq.user_id
+       LEFT JOIN supply_order parent_so ON so.reorder_from_order_id = parent_so.supply_order_id
        ${whereSql}`,
       values
     );
@@ -164,6 +206,8 @@ export class SupplyOrderRepository {
          l.location_type,
          cb.username AS created_by_username,
          ab.username AS approved_by_username,
+         sb.username AS submitted_by_username,
+         parent_so.supply_order_code AS reorder_from_order_code,
          clb.username AS closed_by_username,
          (
            SELECT COUNT(*)::int
@@ -175,9 +219,15 @@ export class SupplyOrderRepository {
        LEFT JOIN location l ON so.location_id = l.location_id
        LEFT JOIN "user" cb ON so.created_by = cb.user_id
        LEFT JOIN "user" ab ON so.approved_by = ab.user_id
+      LEFT JOIN "user" sb ON so.submitted_by = sb.user_id
+      LEFT JOIN supply_order parent_so ON so.reorder_from_order_id = parent_so.supply_order_id
       LEFT JOIN "user" clb ON so.closed_by = clb.user_id
        ${whereSql}
-       ORDER BY so.created_at DESC, so.supply_order_id DESC
+       ORDER BY
+         so.need_by_date ASC NULLS LAST,
+         CASE so.priority WHEN 'URGENT' THEN 1 WHEN 'NORMAL' THEN 2 ELSE 3 END ASC,
+         so.created_at DESC,
+         so.supply_order_id DESC
        LIMIT ${limit} OFFSET ${offset}`,
       values
     );
@@ -199,12 +249,16 @@ export class SupplyOrderRepository {
          l.location_type,
          cb.username AS created_by_username,
          ab.username AS approved_by_username,
+         sb.username AS submitted_by_username,
+         parent_so.supply_order_code AS reorder_from_order_code,
          clb.username AS closed_by_username
        FROM supply_order so
        LEFT JOIN "user" rq ON so.requested_by = rq.user_id
        LEFT JOIN location l ON so.location_id = l.location_id
        LEFT JOIN "user" cb ON so.created_by = cb.user_id
        LEFT JOIN "user" ab ON so.approved_by = ab.user_id
+      LEFT JOIN "user" sb ON so.submitted_by = sb.user_id
+      LEFT JOIN supply_order parent_so ON so.reorder_from_order_id = parent_so.supply_order_id
        LEFT JOIN "user" clb ON so.closed_by = clb.user_id
        WHERE so.supply_order_id = $1`,
       [orderId]
@@ -271,20 +325,20 @@ export class SupplyOrderRepository {
     client: PoolClient,
     orderId: number,
     status: string,
-    options?: { approved_by?: number | null; approved_date?: string | null; note?: string | null }
+    options?: { approved_by?: number | null; approved_at?: string | null; note?: string | null }
   ): Promise<SupplyOrder | null> {
     const result = await client.query(
       `UPDATE supply_order
        SET status = $1,
            approved_by = COALESCE($2, approved_by),
-           approved_date = COALESCE($3, approved_date),
+           approved_at = COALESCE($3, approved_at),
            note = COALESCE($4, note)
        WHERE supply_order_id = $5
        RETURNING *`,
       [
         status,
         options?.approved_by ?? null,
-        options?.approved_date ?? null,
+        options?.approved_at ?? null,
         options?.note ?? null,
         orderId,
       ]
@@ -309,6 +363,51 @@ export class SupplyOrderRepository {
     return result.rows[0] || null;
   }
 
+  async markOrderSubmittedWithClient(
+    client: PoolClient,
+    orderId: number,
+    submittedBy: number,
+    submittedAt: string
+  ): Promise<SupplyOrder | null> {
+    const result = await client.query(
+      `UPDATE supply_order
+       SET status = 'Pending',
+           submitted_by = $1,
+           submitted_at = $2
+       WHERE supply_order_id = $3
+       RETURNING *`,
+      [submittedBy, submittedAt, orderId]
+    );
+
+    return result.rows[0] || null;
+  }
+
+  async markFirstDeliveryAtWithClient(
+    client: PoolClient,
+    orderId: number,
+    firstDeliveryAt: string
+  ): Promise<void> {
+    await client.query(
+      `UPDATE supply_order
+       SET first_delivery_at = COALESCE(first_delivery_at, $1)
+       WHERE supply_order_id = $2`,
+      [firstDeliveryAt, orderId]
+    );
+  }
+
+  async setCompletedAtWithClient(
+    client: PoolClient,
+    orderId: number,
+    completedAt: string | null
+  ): Promise<void> {
+    await client.query(
+      `UPDATE supply_order
+       SET completed_at = $1
+       WHERE supply_order_id = $2`,
+      [completedAt, orderId]
+    );
+  }
+
   async closeOrderWithClient(
     client: PoolClient,
     orderId: number,
@@ -325,14 +424,16 @@ export class SupplyOrderRepository {
            closed_by = $1,
            closed_at = $2,
            close_reason = $3,
-           close_note = $4
-       WHERE supply_order_id = $5
+           close_note = $4,
+           completed_at = COALESCE(completed_at, $5)
+       WHERE supply_order_id = $6
        RETURNING *`,
       [
         data.closed_by,
         data.closed_at,
         data.close_reason,
         data.close_note ?? null,
+        data.closed_at,
         orderId,
       ]
     );
@@ -344,15 +445,19 @@ export class SupplyOrderRepository {
     client: PoolClient,
     itemId: number,
     approvedQty: number,
-    status: 'Approved' | 'Rejected'
+    status: 'Approved' | 'Rejected',
+    expectedDeliveryDate?: string | null,
+    shortageReason?: string | null
   ): Promise<SupplyOrderItem | null> {
     const result = await client.query(
       `UPDATE supply_order_item
        SET approved_qty = $1,
-           status = $2
-       WHERE supply_order_item_id = $3
+           status = $2,
+           expected_delivery_date = $3,
+           shortage_reason = $4
+       WHERE supply_order_item_id = $5
        RETURNING *`,
-      [approvedQty, status, itemId]
+      [approvedQty, status, expectedDeliveryDate ?? null, shortageReason ?? null, itemId]
     );
 
     return result.rows[0] || null;
