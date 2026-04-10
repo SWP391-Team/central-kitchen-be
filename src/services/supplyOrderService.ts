@@ -491,6 +491,7 @@ export class SupplyOrderService {
       }
 
       let hasApproved = false;
+      const todayDateOnly = new Date().toISOString().slice(0, 10);
       for (const item of items) {
         const itemId = this.toId(item.supply_order_item_id);
         const approval = approvalMap.get(itemId);
@@ -502,13 +503,10 @@ export class SupplyOrderService {
           throw new Error('approved_qty must be between 0 and requested_qty');
         }
 
-        if (approval.expectedDeliveryDate && item.need_by_date_item) {
+        if (approval.expectedDeliveryDate) {
           const expectedDateOnly = approval.expectedDeliveryDate.slice(0, 10);
-          const needByDateOnly = this.parseDateOnly(item.need_by_date_item);
-          if (needByDateOnly && expectedDateOnly < needByDateOnly) {
-            throw new Error(
-              `expected_delivery_date must be on or after need_by_date_item (item ${itemId})`
-            );
+          if (expectedDateOnly < todayDateOnly) {
+            throw new Error(`expected_delivery_date cannot be in the past (item ${itemId})`);
           }
         }
 
